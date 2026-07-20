@@ -177,6 +177,10 @@ model User {
   uploadedFiles      MediaFile[]
   sentConnections    ConnectionRequest[] @relation("ConnectionSender")
   receivedConnections ConnectionRequest[] @relation("ConnectionReceiver")
+  referredById       String?
+  referredBy         User?               @relation("Referrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals          User[]              @relation("Referrals")
+  profileShares      ProfileShare[]
 
   @@index([email])
   @@index([username])
@@ -797,6 +801,18 @@ model DailyStats {
   createdAt      DateTime @default(now())
 
   @@index([date(sort: Desc)])
+}
+
+model ProfileShare {
+  id          String   @id @default(cuid())
+  sharerId    String
+  sharer      User     @relation(fields: [sharerId], references: [id], onDelete: Cascade)
+  sharedWith  String?  // name or identifier entered by sharer (optional)
+  sharedEmail String?  // email of person shared with (optional)
+  createdAt   DateTime @default(now())
+
+  @@index([sharerId])
+  @@index([createdAt(sort: Desc)])
 }
 
 model AdminSession {

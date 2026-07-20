@@ -54,6 +54,11 @@ export function buildApp(): Application {
   // 5. Global rate limiting
   app.use(globalRateLimiter);
 
+  // Root health check
+  app.get('/', (_req, res) => {
+    res.json({ success: true, message: 'Community API is running', version: config.API_VERSION, docs: '/api-docs' });
+  });
+
   // 6. Static uploads
   app.use('/uploads', express.static(path.join(__dirname, '../uploads'), {
     setHeaders(res, filePath) {

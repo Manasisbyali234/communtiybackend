@@ -14,6 +14,7 @@ export const authService = {
     username: string;
     displayName: string;
     password: string;
+    referredById?: string;
   }) {
     const existing = await prisma.user.findFirst({
       where: { OR: [{ email: data.email }, { username: data.username }] },
@@ -25,12 +26,18 @@ export const authService = {
 
     const passwordHash = await hashPassword(data.password);
 
+    // Validate referrer exists
+    const referredById = data.referredById
+      ? (await prisma.user.findUnique({ where: { id: data.referredById }, select: { id: true } }))?.id
+      : undefined;
+
     const user = await prisma.user.create({
       data: {
         email: data.email,
         username: data.username,
         displayName: data.displayName,
         passwordHash,
+        ...(referredById ? { referredById } : {}),
       },
       select: { id: true, email: true, username: true, displayName: true, role: true, isVerified: true },
     });

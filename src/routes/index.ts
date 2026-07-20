@@ -19,6 +19,7 @@ import exploreRoutes from './v1/explore.routes';
 import connectionsRoutes from './v1/connections.routes';
 import storyUploadRoutes from '../story-upload/story.upload.routes';
 import marketRatesRoutes from './v1/marketRates.routes';
+import referralRoutes from './v1/referral.routes';
 
 const router = Router();
 
@@ -55,6 +56,9 @@ router.use('/story-upload', storyUploadRoutes);
 
 // Market Rates
 router.use('/market-rates', marketRatesRoutes);
+
+// Referral tracking
+router.use('/referral', referralRoutes);
 
 // Admin & Moderation
 router.use('/moderation', moderationRoutes);
