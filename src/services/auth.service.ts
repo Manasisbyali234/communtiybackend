@@ -163,7 +163,7 @@ export const authService = {
     if (!user || !user.isActive) return;
 
     const code = await this.createOtp(user.id, 'OTP_LOGIN');
-    await emailService.sendOtp(email, code, 'OTP_LOGIN');
+    await emailService.sendOtp(email, code, 'OTP_LOGIN' as any);
   },
 
   async verifyOtpLogin(email: string, code: string): Promise<{ user: object; accessToken: string; refreshToken: string }> {

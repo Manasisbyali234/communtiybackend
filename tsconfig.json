@@ -56,8 +56,4 @@
     "dist",
     "tests"
   ],
-<<<<<<< HEAD
-=======
-  "extends": "expo/tsconfig.base"
->>>>>>> eac537110cc829bc4a14084cd6cac42c3163d505
 }

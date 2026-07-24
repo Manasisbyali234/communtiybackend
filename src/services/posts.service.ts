@@ -139,7 +139,7 @@ export const postsService = {
       const delay = data.scheduledAt.getTime() - Date.now();
       if (delay > 0) {
         const queue = getQueue(QUEUE_NAMES.SCHEDULED_POST);
-        await queue.add('publish', { postId: post.id }, { delay, jobId: `post:${post.id}` });
+        await queue.add('publish', { postId: post.id }, { delay } as any);
       }
     }
 

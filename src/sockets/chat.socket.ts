@@ -53,7 +53,7 @@ export function registerChatHandlers(io: Server, socket: Socket): void {
       // Create notifications for other participants
       const participants = await prisma.conversationParticipant.findMany({
         where: { conversationId: payload.conversationId, userId: { not: userId } },
-        include: { user: { select: { displayName: true, expoPushToken: true } } },
+        include: { user: { select: { displayName: true } } },
       });
 
       const sender = await prisma.user.findUnique({ where: { id: userId }, select: { displayName: true } });

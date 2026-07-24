@@ -157,7 +157,6 @@ export const exploreService = {
       include: {
         post: {
           include: { author: { select: { id: true, username: true, displayName: true, avatarUrl: true } } },
-          where: { deletedAt: null, isDraft: false, authorId: { notIn: blockedIds } },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -166,7 +165,9 @@ export const exploreService = {
     });
 
     const hasMore = posts.length > limit;
-    const items = posts.slice(0, limit).map((ph) => ph.post).filter(Boolean);
+    const items = posts.slice(0, limit)
+      .map((ph) => ph.post)
+      .filter((p) => p && !p.deletedAt && !p.isDraft && !blockedIds.includes(p.authorId));
     const nextCursor = hasMore ? posts[limit - 1]?.id : null;
 
     return { items, nextCursor, hasMore };

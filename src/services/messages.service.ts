@@ -123,6 +123,7 @@ export const messagesService = {
         actorId: senderId,
         entityId: message.id,
         entityType: 'Message',
+        body: 'You have a new message.',
       });
     }
 

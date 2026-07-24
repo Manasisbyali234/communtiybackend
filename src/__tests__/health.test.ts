@@ -1,7 +1,7 @@
 import request from 'supertest';
-import { buildApp } from '../../app';
-import { prisma } from '../../config/database';
-import { redis } from '../../config/redis';
+import { buildApp } from '../app';
+import { prisma } from '../config/database';
+import { redis } from '../config/redis';
 
 // Mock dependencies
 jest.mock('../../config/database', () => ({
