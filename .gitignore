@@ -2,5 +2,4 @@
 .env.*
 !.env.example
 node_modules/
-uploads/app-release.apk
-uploads/*.apk
+uploads/
