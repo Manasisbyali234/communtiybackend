@@ -59,6 +59,51 @@ export function buildApp(): Application {
     res.json({ success: true, message: 'Community API is running', version: config.API_VERSION, docs: '/api-docs' });
   });
 
+  // APK download landing page
+  app.get('/download', (req, res) => {
+    const ref = req.query.ref ? `?ref=${req.query.ref}` : '';
+    const APK_URL = 'https://community-api.metromindz.com/uploads/app-release.apk';
+    const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.mmdevteam.communityapp';
+    res.setHeader('Content-Type', 'text/html');
+    res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Download GowdaCommunity</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f0; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
+    .card { background: #fff; border-radius: 24px; padding: 40px 32px; max-width: 420px; width: 100%; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.10); }
+    .icon { font-size: 56px; margin-bottom: 16px; }
+    h1 { font-size: 26px; font-weight: 800; color: #1a2d1a; margin-bottom: 8px; }
+    p { color: #666; font-size: 15px; line-height: 1.6; margin-bottom: 28px; }
+    .btn { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 16px 24px; border-radius: 50px; text-decoration: none; font-size: 16px; font-weight: 700; margin-bottom: 12px; transition: opacity 0.2s; }
+    .btn:hover { opacity: 0.88; }
+    .btn-primary { background: #2D6A2D; color: #fff; }
+    .btn-secondary { background: #f0f0f0; color: #1a2d1a; }
+    .features { text-align: left; margin-top: 24px; border-top: 1px solid #eee; padding-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+    .feature { display: flex; align-items: center; gap: 10px; color: #444; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">🌿</div>
+    <h1>GowdaCommunity</h1>
+    <p>Connect with family &amp; community members, stay updated on events, and more.</p>
+    <a href="${APK_URL}${ref}" class="btn btn-primary">⬇️ Download APK (Android)</a>
+    <a href="${PLAY_STORE_URL}" class="btn btn-secondary">▶ Google Play Store</a>
+    <div class="features">
+      <div class="feature">👥 Connect with family &amp; community</div>
+      <div class="feature">📅 Stay updated on local events</div>
+      <div class="feature">💬 Chat and share with your network</div>
+      <div class="feature">🌾 Access market rates &amp; farming tools</div>
+    </div>
+  </div>
+</body>
+</html>`);
+  });
+
   // 6. Static uploads
   app.use('/uploads', express.static(path.join(__dirname, '../uploads'), {
     setHeaders(res, filePath) {
