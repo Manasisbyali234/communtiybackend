@@ -124,7 +124,7 @@ export const authService = {
 
   async forgotPassword(email: string): Promise<void> {
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return; // Prevent email enumeration
+    if (!user) throw ApiError.notFound('Email is not registered');
     const code = await this.createOtp(user.id, 'RESET_PASSWORD');
     await emailService.sendOtp(email, code, 'RESET_PASSWORD');
   },
