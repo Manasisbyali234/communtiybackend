@@ -7,7 +7,7 @@ import { validate } from '../../middleware/validate';
 const router = Router();
 router.use(auth);
 
-const StartConversationSchema = z.object({ participantId: z.string().cuid() });
+const StartConversationSchema = z.object({ participantId: z.string().min(1) });
 
 const SendMessageSchema = z.object({
   content: z.string().max(5000).optional(),
