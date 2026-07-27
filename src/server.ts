@@ -31,7 +31,19 @@ async function bootstrap() {
     // 6. Attach Socket.io
     initSocketServer(server);
 
-    // 7. Start listening
+    // 7. Periodic story expiry cleanup (every 5 minutes) — catches any missed BullMQ jobs
+    const cleanExpiredStories = async () => {
+      try {
+        const { count } = await prisma.story.deleteMany({ where: { expiresAt: { lt: new Date() } } });
+        if (count > 0) logger.info({ count }, 'Cleaned up expired stories');
+      } catch (err) {
+        logger.error({ err }, 'Story cleanup failed');
+      }
+    };
+    await cleanExpiredStories();
+    setInterval(cleanExpiredStories, 5 * 60 * 1000);
+
+    // 8. Start listening
     server.listen(config.PORT, '0.0.0.0', () => {
       logger.info(`Server is running on http://0.0.0.0:${config.PORT}`);
     });
