@@ -23,6 +23,7 @@ const CursorQuerySchema = z.object({
 const ReactionSchema = z.object({ emoji: z.string().min(1).max(10) });
 
 router.get('/conversations', messagesController.getConversations);
+router.get('/unread-count', messagesController.getUnreadCount);
 router.post('/conversations', validate({ body: StartConversationSchema }), messagesController.getOrCreate);
 router.get('/conversations/:id', validate({ query: CursorQuerySchema }), messagesController.getMessages);
 router.post('/conversations/:id', validate({ body: SendMessageSchema }), messagesController.sendMessage);

@@ -22,17 +22,22 @@ export const messagesService = {
           },
         },
       },
-      orderBy: { conversation: { lastMessageAt: 'desc' } },
     });
 
-    return participations.map((p) => ({
-      ...p.conversation,
-      lastReadAt: p.lastReadAt,
-      otherParticipants: p.conversation.participants
-        .filter((part) => part.userId !== userId)
-        .map((part) => part.user),
-      lastMessage: p.conversation.messages[0] ?? null,
-    }));
+    return participations
+      .map((p) => ({
+        ...p.conversation,
+        lastReadAt: p.lastReadAt,
+        otherParticipants: p.conversation.participants
+          .filter((part) => part.userId !== userId)
+          .map((part) => part.user),
+        lastMessage: p.conversation.messages[0] ?? null,
+      }))
+      .sort((a, b) => {
+        const aTime = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : new Date(a.createdAt).getTime();
+        const bTime = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : new Date(b.createdAt).getTime();
+        return bTime - aTime;
+      });
   },
 
   async getOrCreateConversation(userId: string, participantId: string) {
@@ -128,6 +133,31 @@ export const messagesService = {
     }
 
     return message;
+  },
+
+  async getUnreadCount(userId: string): Promise<number> {
+    const participations = await prisma.conversationParticipant.findMany({
+      where: { userId, leftAt: null },
+      include: {
+        conversation: {
+          include: {
+            messages: {
+              where: { deletedForAll: false, senderId: { not: userId } },
+              orderBy: { createdAt: 'desc' },
+            },
+          },
+        },
+      },
+    });
+
+    let count = 0;
+    for (const p of participations) {
+      const unread = p.conversation.messages.filter(
+        (m) => !p.lastReadAt || m.createdAt > p.lastReadAt
+      );
+      count += unread.length;
+    }
+    return count;
   },
 
   async markRead(conversationId: string, userId: string) {

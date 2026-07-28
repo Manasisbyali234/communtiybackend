@@ -121,6 +121,7 @@ router.get('/recent-activity', asyncHandler(async (_req, res) => {
     prisma.event.findMany({
       orderBy: { createdAt: 'desc' }, take: 5,
       select: { id: true, title: true, createdAt: true, creatorId: true,
+        creator: { select: { id: true, displayName: true, email: true, avatarUrl: true } },
         community: { select: { name: true } } },
     }),
     prisma.story.findMany({
@@ -134,7 +135,7 @@ router.get('/recent-activity', asyncHandler(async (_req, res) => {
     ...users.map(u => ({ type: 'USER_REGISTERED', user: u, action: 'registered', date: u.createdAt })),
     ...posts.map(p => ({ type: p.communityId ? 'COMMUNITY_POST' : 'FEED_POSTED', user: p.author, action: p.communityId ? 'created a community post' : 'posted a feed', date: p.createdAt })),
     ...communities.map(c => ({ type: 'COMMUNITY_CREATED', user: c.members[0]?.user ?? null, action: `created community "${c.name}"`, date: c.createdAt })),
-    ...events.map(e => ({ type: 'EVENT_CREATED', user: null, action: `created event "${e.title}"`, date: e.createdAt })),
+    ...events.map(e => ({ type: 'EVENT_CREATED', user: e.creator ?? null, action: `created event "${e.title}"`, date: e.createdAt })),
     ...stories.map(s => ({ type: 'STORY_UPLOADED', user: s.author, action: 'uploaded a story', date: s.createdAt })),
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 20);
 
@@ -148,6 +149,7 @@ router.get('/users', asyncHandler(async (req, res) => {
 
   const where: any = {
     deletedAt: null,
+    role: { not: 'ADMIN' },
     ...searchWhere(q),
     ...(status === 'active' ? { isActive: true, isBanned: false } : {}),
     ...(status === 'blocked' ? { isBanned: true } : {}),
@@ -427,6 +429,7 @@ router.get('/events', asyncHandler(async (req, res) => {
         id: true, title: true, description: true, location: true, startsAt: true, endsAt: true,
         coverUrl: true, rsvpCount: true, status: true, createdAt: true, updatedAt: true,
         community: { select: { id: true, name: true } },
+        creator: { select: { id: true, displayName: true, username: true } },
         _count: { select: { rsvps: true } },
       },
     }),

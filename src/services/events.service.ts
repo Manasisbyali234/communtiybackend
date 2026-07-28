@@ -51,9 +51,10 @@ export const eventsService = {
       },
       include: {
         community: { select: { id: true, name: true, slug: true } },
+        creator: { select: { id: true, displayName: true, username: true } },
         ...(userId ? { interests: { where: { userId }, select: { id: true } } } : {}),
       },
-      orderBy: { startsAt: 'asc' },
+      orderBy: { createdAt: 'desc' },
     });
 
     const normalized = events.map((e: any) => ({

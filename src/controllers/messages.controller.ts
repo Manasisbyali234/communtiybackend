@@ -51,6 +51,11 @@ export const messagesController = {
     }
   }),
 
+  getUnreadCount: asyncHandler(async (req: Request, res: Response) => {
+    const count = await messagesService.getUnreadCount(req.user.id);
+    res.json(new ApiResponse(200, { count }));
+  }),
+
   markRead: asyncHandler(async (req: Request, res: Response) => {
     await messagesService.markRead(req.params['id'], req.user.id);
     res.json(new ApiResponse(200, null, 'Marked as read'));
