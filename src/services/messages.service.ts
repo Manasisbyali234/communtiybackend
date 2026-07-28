@@ -46,24 +46,23 @@ export const messagesService = {
     const target = await prisma.user.findUnique({ where: { id: participantId } });
     if (!target) throw ApiError.notFound('User not found');
 
-    // Look for existing 1:1 conversation (exactly 2 participants)
-    const existing = await prisma.$queryRaw<{ id: string }[]>`
-      SELECT c.id FROM "Conversation" c
-      WHERE c."isGroup" = false
-        AND (
-          SELECT COUNT(*) FROM "ConversationParticipant" cp WHERE cp."conversationId" = c.id
-        ) = 2
-        AND EXISTS (SELECT 1 FROM "ConversationParticipant" cp WHERE cp."conversationId" = c.id AND cp."userId" = ${userId})
-        AND EXISTS (SELECT 1 FROM "ConversationParticipant" cp WHERE cp."conversationId" = c.id AND cp."userId" = ${participantId})
-      LIMIT 1
-    `;
+    // Look for existing 1:1 conversation shared by both users
+    const userConvIds = await prisma.conversationParticipant.findMany({
+      where: { userId, leftAt: null },
+      select: { conversationId: true },
+    });
+    const convIds = userConvIds.map((p) => p.conversationId);
 
-    if (existing.length > 0) {
-      return prisma.conversation.findUniqueOrThrow({
-        where: { id: existing[0].id },
-        include: { participants: { include: { user: { select: { id: true, username: true, displayName: true, avatarUrl: true } } } } },
-      });
-    }
+    const existing = await prisma.conversation.findFirst({
+      where: {
+        id: { in: convIds },
+        isGroup: false,
+        participants: { some: { userId: participantId, leftAt: null } },
+      },
+      include: { participants: { include: { user: { select: { id: true, username: true, displayName: true, avatarUrl: true } } } } },
+    });
+
+    if (existing) return existing;
 
     return prisma.conversation.create({
       data: {
