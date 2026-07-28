@@ -161,6 +161,7 @@ model User {
   communityInvitesReceived CommunityInvite[]  @relation("InviteRecipient")
   sentMessages       Message[]                @relation("Sender")
   conversations      ConversationParticipant[]
+  events             Event[]
   eventRsvps         EventRsvp[]
   eventInterests     EventInterest[]
   eventLikes         EventLike[]
@@ -587,6 +588,7 @@ model Event {
   communityId     String?
   community       Community? @relation(fields: [communityId], references: [id])
   creatorId       String
+  creator         User        @relation(fields: [creatorId], references: [id])
   title           String
   description     String?
   location        String?
