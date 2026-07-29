@@ -3,6 +3,7 @@ import { ApiError } from '../utils/ApiError';
 import { buildCursorArgs, buildCursorPage } from '../utils/pagination';
 import { MediaType } from '@prisma/client';
 import { notificationsService } from './notifications.service';
+import { getUserPresence } from '../sockets/presence.socket';
 export const messagesService = {
   async getConversations(userId: string) {
     const participations = await prisma.conversationParticipant.findMany({
@@ -24,15 +25,24 @@ export const messagesService = {
       },
     });
 
-    return participations
-      .map((p) => ({
+    const conversations = await Promise.all(participations.map(async (p) => {
+      const participants = await Promise.all(p.conversation.participants.map(async (part) => ({
+        ...part,
+        user: part.userId === userId ? part.user : { ...part.user, ...(await getUserPresence(part.userId)) },
+      })));
+
+      return {
         ...p.conversation,
+        participants,
         lastReadAt: p.lastReadAt,
-        otherParticipants: p.conversation.participants
+        otherParticipants: participants
           .filter((part) => part.userId !== userId)
           .map((part) => part.user),
         lastMessage: p.conversation.messages[0] ?? null,
-      }))
+      };
+    }));
+
+    return conversations
       .sort((a, b) => {
         const aTime = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : new Date(a.createdAt).getTime();
         const bTime = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : new Date(b.createdAt).getTime();

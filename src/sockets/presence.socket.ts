@@ -5,24 +5,44 @@ import { logger } from '../config/logger';
 
 const PRESENCE_TTL = 60; // seconds
 
+export type UserPresence = {
+  isOnline: boolean;
+  lastSeenAt: string | null;
+};
+
+async function notifyConversationParticipants(io: Server, userId: string, event: 'presence:online' | 'presence:offline', lastSeenAt?: string) {
+  const participants = await prisma.conversationParticipant.findMany({
+    where: { userId, leftAt: null },
+    select: {
+      conversation: {
+        select: {
+          participants: { where: { userId: { not: userId }, leftAt: null }, select: { userId: true } },
+        },
+      },
+    },
+  });
+
+  const recipientIds = new Set(
+    participants.flatMap((participant) => participant.conversation.participants.map((other) => other.userId)),
+  );
+  for (const recipientId of recipientIds) {
+    io.to(`user:${recipientId}`).emit(event, { userId, lastSeenAt });
+  }
+}
+
 export function registerPresenceHandlers(io: Server, socket: Socket): void {
   const userId = socket.data['userId'] as string;
 
   const setOnline = async () => {
     await redis.set(`presence:${userId}`, '1', 'EX', PRESENCE_TTL);
-    // Notify followers that this user came online
-    const followers = await prisma.follow.findMany({ where: { followingId: userId }, select: { followerId: true } });
-    for (const f of followers) {
-      io.to(`user:${f.followerId}`).emit('presence:online', { userId });
-    }
+    await notifyConversationParticipants(io, userId, 'presence:online');
   };
 
   const setOffline = async () => {
+    const lastSeenAt = new Date().toISOString();
     await redis.del(`presence:${userId}`);
-    const followers = await prisma.follow.findMany({ where: { followingId: userId }, select: { followerId: true } });
-    for (const f of followers) {
-      io.to(`user:${f.followerId}`).emit('presence:offline', { userId });
-    }
+    await redis.set(`presence:last-seen:${userId}`, lastSeenAt);
+    await notifyConversationParticipants(io, userId, 'presence:offline', lastSeenAt);
   };
 
   // Set online immediately on connect
@@ -42,4 +62,14 @@ export function registerPresenceHandlers(io: Server, socket: Socket): void {
 export async function isUserOnline(userId: string): Promise<boolean> {
   const result = await redis.exists(`presence:${userId}`);
   return result === 1;
+}
+
+export async function getUserPresence(userId: string): Promise<UserPresence> {
+  const isOnline = await isUserOnline(userId);
+  if (isOnline) return { isOnline: true, lastSeenAt: null };
+
+  return {
+    isOnline: false,
+    lastSeenAt: await redis.get(`presence:last-seen:${userId}`),
+  };
 }
