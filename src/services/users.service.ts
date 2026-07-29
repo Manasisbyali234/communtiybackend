@@ -110,7 +110,8 @@ export const usersService = {
     const args = buildCursorArgs({ cursor, limit });
     const posts = await prisma.post.findMany({
       ...args,
-      where: { authorId: userId },
+      // Posts are soft-deleted, so never return records the author has deleted.
+      where: { authorId: userId, deletedAt: null },
       include: { author: { select: { id: true, username: true, displayName: true, avatarUrl: true } } },
       orderBy: { createdAt: 'desc' },
     });
