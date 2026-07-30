@@ -31,10 +31,20 @@ export const messagesService = {
         user: part.userId === userId ? part.user : { ...part.user, ...(await getUserPresence(part.userId)) },
       })));
 
+      const unreadCount = await prisma.message.count({
+        where: {
+          conversationId: p.conversationId,
+          senderId: { not: userId },
+          deletedForAll: false,
+          ...(p.lastReadAt ? { createdAt: { gt: p.lastReadAt } } : {}),
+        },
+      });
+
       return {
         ...p.conversation,
         participants,
         lastReadAt: p.lastReadAt,
+        unreadCount,
         otherParticipants: participants
           .filter((part) => part.userId !== userId)
           .map((part) => part.user),
