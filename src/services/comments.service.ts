@@ -9,15 +9,22 @@ const COMMENT_SELECT = {
 };
 
 export const commentsService = {
-  async getComments(postId: string, parentId: string | null, cursor?: string, limit = 20) {
+  async getComments(postId: string, parentId: string | null, userId: string, cursor?: string, limit = 20) {
     const args = buildCursorArgs({ cursor, limit });
     const comments = await prisma.comment.findMany({
       ...args,
       where: { postId, parentId: parentId ?? null },
-      select: COMMENT_SELECT,
+      select: {
+        ...COMMENT_SELECT,
+        likes: { where: { userId }, select: { id: true } },
+      },
       orderBy: { createdAt: 'asc' },
     });
-    return buildCursorPage(comments, limit);
+    const page = buildCursorPage(comments, limit);
+    return {
+      ...page,
+      data: page.data.map(({ likes, ...comment }) => ({ ...comment, isLiked: likes.length > 0 })),
+    };
   },
 
   async addComment(postId: string, authorId: string, content: string, parentId?: string) {
@@ -81,13 +88,23 @@ export const commentsService = {
     const comment = await prisma.comment.findUnique({ where: { id: commentId } });
     if (!comment) throw ApiError.notFound('Comment not found');
 
-    await prisma.$transaction([
-      prisma.like.upsert({
-        where: { userId_commentId: { userId, commentId } },
-        create: { userId, commentId },
-        update: {},
-      }),
-      prisma.comment.update({ where: { id: commentId }, data: { likesCount: { increment: 1 } } }),
-    ]);
+    const existingLike = await prisma.like.findUnique({ where: { userId_commentId: { userId, commentId } } });
+    const isLiked = !existingLike;
+
+    const updatedComment = await prisma.$transaction(async (tx) => {
+      if (existingLike) {
+        await tx.like.delete({ where: { id: existingLike.id } });
+      } else {
+        await tx.like.create({ data: { userId, commentId } });
+      }
+
+      return tx.comment.update({
+        where: { id: commentId },
+        data: { likesCount: { [isLiked ? 'increment' : 'decrement']: 1 } },
+        select: { likesCount: true },
+      });
+    });
+
+    return { isLiked, likesCount: Math.max(0, updatedComment.likesCount) };
   },
 };

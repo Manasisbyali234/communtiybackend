@@ -78,6 +78,7 @@ export const postsController = {
     const result = await commentsService.getComments(
       req.params['id'] as string,
       parentId ?? null,
+      req.user.id,
       cursor,
       limit ? parseInt(limit) : 20,
     );
@@ -102,7 +103,7 @@ export const postsController = {
   }),
 
   likeComment: asyncHandler(async (req: Request, res: Response) => {
-    await commentsService.likeComment(req.params['cid'] as string, req.user.id);
-    res.json(new ApiResponse(200, null, 'Comment liked'));
+    const result = await commentsService.likeComment(req.params['cid'] as string, req.user.id);
+    res.json(new ApiResponse(200, result, result.isLiked ? 'Comment liked' : 'Comment unliked'));
   }),
 };
