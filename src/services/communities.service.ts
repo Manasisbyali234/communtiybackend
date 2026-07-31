@@ -282,7 +282,29 @@ export const communitiesService = {
     ]);
   },
 
-  async getCommunityPosts(communityId: string, cursor?: string, limit = 20) {
+  async getCommunityPosts(communityId: string, userId: string, cursor?: string, limit = 20) {
+    const community = await prisma.community.findUnique({
+      where: { id: communityId },
+      select: { isPrivate: true },
+    });
+    if (!community) throw ApiError.notFound('Community not found');
+
+    if (community.isPrivate) {
+      const canView = await prisma.communityMember.findFirst({
+        where: {
+          communityId,
+          role: CommunityMemberRole.ADMIN,
+          status: CommunityMemberStatus.ACTIVE,
+          OR: [
+            { userId },
+            { user: { followers: { some: { followerId: userId } } } },
+          ],
+        },
+        select: { id: true },
+      });
+      if (!canView) throw ApiError.forbidden('This private community is only visible to the creator\'s followers');
+    }
+
     const args = buildCursorArgs({ cursor, limit });
     const posts = await prisma.post.findMany({
       ...args,

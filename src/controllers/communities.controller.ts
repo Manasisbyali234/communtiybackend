@@ -121,7 +121,7 @@ export const communitiesController = {
 
   getPosts: asyncHandler(async (req: Request, res: Response) => {
     const { cursor, limit } = req.query as { cursor?: string; limit?: string };
-    const result = await communitiesService.getCommunityPosts(req.params['id'], cursor, limit ? parseInt(limit) : 20);
+    const result = await communitiesService.getCommunityPosts(req.params['id'], req.user.id, cursor, limit ? parseInt(limit) : 20);
     res.json(new ApiResponse(200, result));
   }),
 };

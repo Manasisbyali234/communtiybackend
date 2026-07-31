@@ -66,7 +66,7 @@ export const postsService = {
     const blockedIds = await blocksService.getBlockedIds(userId);
     const [follows, memberships] = await Promise.all([
       prisma.follow.findMany({ where: { followerId: userId }, select: { followingId: true } }),
-      prisma.communityMember.findMany({ where: { userId }, select: { communityId: true } }),
+      prisma.communityMember.findMany({ where: { userId, status: 'ACTIVE' }, select: { communityId: true } }),
     ]);
 
     const followingIds = follows.map((f) => f.followingId).filter((id) => !blockedIds.includes(id));
@@ -81,7 +81,42 @@ export const postsService = {
         scheduledAt: null,
         OR: [
           { authorId: { in: followingIds }, communityId: null },
-          { communityId: { in: communityIds }, status: 'APPROVED' as any },
+          // Public community posts remain visible to active members. Private
+          // community posts are visible only to the creator's followers (or
+          // to the community's admin, handled by the author/admin clauses).
+          {
+            community: {
+              is: {
+                isPrivate: false,
+                members: { some: { userId, status: 'ACTIVE' as any } },
+              },
+            },
+            communityId: { in: communityIds },
+            status: 'APPROVED' as any,
+          },
+          {
+            community: {
+              is: {
+                isPrivate: true,
+                members: {
+                  some: {
+                    role: 'ADMIN' as any,
+                    user: { followers: { some: { followerId: userId } } },
+                  },
+                },
+              },
+            },
+            status: 'APPROVED' as any,
+          },
+          {
+            community: {
+              is: {
+                isPrivate: true,
+                members: { some: { userId, role: 'ADMIN' as any, status: 'ACTIVE' as any } },
+              },
+            },
+            status: 'APPROVED' as any,
+          },
           { authorId: userId },
         ],
         NOT: { authorId: { in: blockedIds } },
@@ -147,6 +182,36 @@ export const postsService = {
   },
 
   async getPost(postId: string, viewerId?: string) {
+    const accessPost = await prisma.post.findFirst({
+      where: { id: postId, deletedAt: null, OR: [{ communityId: null }, { status: 'APPROVED' as any }] },
+      select: { authorId: true, communityId: true },
+    });
+    if (!accessPost) throw ApiError.notFound('Post not found');
+
+    if (accessPost.communityId && viewerId && accessPost.authorId !== viewerId) {
+      const privateCommunity = await prisma.community.findFirst({
+        where: {
+          id: accessPost.communityId,
+          isPrivate: true,
+          NOT: {
+            members: { some: { userId: viewerId, role: 'ADMIN' as any, status: 'ACTIVE' as any } },
+          },
+        },
+        select: {
+          members: {
+            where: {
+              role: 'ADMIN' as any,
+              user: { followers: { some: { followerId: viewerId } } },
+            },
+            select: { id: true },
+          },
+        },
+      });
+      if (privateCommunity && privateCommunity.members.length === 0) {
+        throw ApiError.forbidden('This private community post is only visible to the creator\'s followers');
+      }
+    }
+
     const post = await prisma.post.findFirst({
       where: { id: postId, deletedAt: null, OR: [{ communityId: null }, { status: 'APPROVED' as any }] },
       select: {
