@@ -11,6 +11,7 @@ const router = Router();
 // Static routes first (must come before /:id)
 router.get('/admin/all', adminAuth, listJobsAdmin);
 router.patch('/applications/:applicationId/status', adminAuth, updateApplicationStatus);
+router.get('/user/:userId/applications', auth, getUserApplications);
 
 // Public list & create
 router.get('/', listJobs);
