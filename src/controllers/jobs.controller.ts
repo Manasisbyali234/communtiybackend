@@ -66,7 +66,11 @@ export const listJobsAdmin = asyncHandler(async (_req: Request, res: Response) =
     orderBy: { createdAt: 'desc' },
     include: { _count: { select: { applications: true } } },
   });
-  res.json(new ApiResponse(200, jobs));
+  const result = jobs.map(({ _count, ...job }) => ({
+    ...job,
+    applyCount: _count.applications,
+  }));
+  res.json(new ApiResponse(200, result));
 });
 
 // ── Public: List Active Jobs ──────────────────────────────────────────────────

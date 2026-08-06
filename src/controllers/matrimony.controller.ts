@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import path from 'path';
 import crypto from 'crypto';
 import { PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { MatrimonyApprovalStatus, Role } from '@prisma/client';
 import { prisma } from '../config/database';
 import { s3, storageBucket } from '../config/storage';
 import { config } from '../config';
@@ -113,7 +114,7 @@ export const createProfile = asyncHandler(async (req: Request, res: Response) =>
       diet, familyType, fatherOccupation, motherOccupation,
       siblings: siblings != null ? Number(siblings) : null,
       photos: photoList,
-      approvalStatus: 'PENDING',
+      approvalStatus: MatrimonyApprovalStatus.PENDING,
       partnerMinAge: partnerMinAge != null ? Number(partnerMinAge) : null,
       partnerMaxAge: partnerMaxAge != null ? Number(partnerMaxAge) : null,
       partnerReligion, partnerCaste, partnerEducation, partnerCity,
@@ -123,7 +124,7 @@ export const createProfile = asyncHandler(async (req: Request, res: Response) =>
 
   // Notify all admins about new profile pending approval
   const admins = await prisma.user.findMany({
-    where: { role: 'ADMIN', isActive: true, deletedAt: null },
+    where: { role: Role.ADMIN, isActive: true, deletedAt: null },
     select: { id: true },
   });
   await Promise.all(admins.map(admin =>
@@ -176,7 +177,7 @@ export const updateProfile = asyncHandler(async (req: Request, res: Response) =>
     data: {
       ...data,
       // Re-submit for approval when profile is updated
-      approvalStatus: 'PENDING',
+      approvalStatus: MatrimonyApprovalStatus.PENDING,
       rejectionReason: null,
       dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined,
       siblings: data.siblings != null ? Number(data.siblings) : undefined,
@@ -198,7 +199,7 @@ export const listProfiles = asyncHandler(async (req: Request, res: Response) => 
   } = req.query as Record<string, string>;
 
   // Only show APPROVED + active profiles
-  const where: any = { isActive: true, approvalStatus: 'APPROVED' };
+  const where: any = { isActive: true, approvalStatus: MatrimonyApprovalStatus.APPROVED };
 
   // Fetch requesting user's profile for exclusion + smart defaults
   let myProfile: { id: string; gender: string; dateOfBirth: Date } | null = null;
@@ -277,7 +278,7 @@ export const getProfile = asyncHandler(async (req: Request, res: Response) => {
     include: { user: { select: { avatarUrl: true } } },
   });
   if (!profile) throw new ApiError(404, 'Profile not found');
-  if (profile.approvalStatus !== 'APPROVED' && profile.userId !== userId) {
+  if (profile.approvalStatus !== MatrimonyApprovalStatus.APPROVED && profile.userId !== userId) {
     throw new ApiError(404, 'Profile not found');
   }
 
@@ -309,7 +310,7 @@ export const getMatches = asyncHandler(async (req: Request, res: Response) => {
   const oppositeGender = myProfile.gender === 'MALE' ? 'FEMALE' : myProfile.gender === 'FEMALE' ? 'MALE' : undefined;
   const myAge = calcAge(new Date(myProfile.dateOfBirth));
 
-  const where: any = { isActive: true, approvalStatus: 'APPROVED', id: { not: myProfile.id } };
+  const where: any = { isActive: true, approvalStatus: MatrimonyApprovalStatus.APPROVED, id: { not: myProfile.id } };
   if (oppositeGender) where.gender = oppositeGender;
 
   if (myProfile.partnerReligion) where.religion = { contains: myProfile.partnerReligion, mode: 'insensitive' };
@@ -344,7 +345,7 @@ export const expressInterest = asyncHandler(async (req: Request, res: Response) 
     select: { id: true, displayName: true, approvalStatus: true },
   });
   if (!myProfile) throw new ApiError(404, 'Create your profile first');
-  if (myProfile.approvalStatus !== 'APPROVED') {
+  if (myProfile.approvalStatus !== MatrimonyApprovalStatus.APPROVED) {
     throw new ApiError(403, 'Your profile must be approved before sending interests');
   }
 
@@ -356,7 +357,7 @@ export const expressInterest = asyncHandler(async (req: Request, res: Response) 
     where: { id: toProfileId },
     select: { id: true, userId: true, displayName: true, approvalStatus: true },
   });
-  if (!toProfile || toProfile.approvalStatus !== 'APPROVED') throw new ApiError(404, 'Profile not found');
+  if (!toProfile || toProfile.approvalStatus !== MatrimonyApprovalStatus.APPROVED) throw new ApiError(404, 'Profile not found');
 
   const existing = await prisma.matrimonyInterest.findUnique({
     where: { fromProfileId_toProfileId: { fromProfileId: myProfile.id, toProfileId } },
@@ -526,7 +527,7 @@ export const approveProfile = asyncHandler(async (req: Request, res: Response) =
 
   await prisma.matrimonyProfile.update({
     where: { id },
-    data: { approvalStatus: 'APPROVED', isVerified: true, rejectionReason: null },
+    data: { approvalStatus: MatrimonyApprovalStatus.APPROVED, isVerified: true, rejectionReason: null },
   });
 
   await notificationsService.create({
@@ -553,7 +554,7 @@ export const rejectProfile = asyncHandler(async (req: Request, res: Response) =>
 
   await prisma.matrimonyProfile.update({
     where: { id },
-    data: { approvalStatus: 'REJECTED', rejectionReason: reason ?? null },
+    data: { approvalStatus: MatrimonyApprovalStatus.REJECTED, rejectionReason: reason ?? null },
   });
 
   await notificationsService.create({
