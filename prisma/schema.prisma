@@ -182,6 +182,7 @@ model User {
   referredBy         User?               @relation("Referrals", fields: [referredById], references: [id], onDelete: SetNull)
   referrals          User[]              @relation("Referrals")
   profileShares      ProfileShare[]
+  jobApplications    JobApplication[]
 
   @@index([email])
   @@index([username])
@@ -826,4 +827,75 @@ model AdminSession {
 
   @@index([adminId])
   @@index([token])
+}
+
+enum JobStatus {
+  ACTIVE
+  CLOSED
+  DRAFT
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  INTERNSHIP
+  CONTRACT
+}
+
+enum WorkMode {
+  WORK_FROM_OFFICE
+  HYBRID
+  REMOTE
+}
+
+enum JobApplicationStatus {
+  APPLIED
+  UNDER_REVIEW
+  SHORTLISTED
+  REJECTED
+  SELECTED
+}
+
+model Job {
+  id             String         @id @default(cuid())
+  companyLogo    String?
+  companyName    String
+  jobTitle       String
+  description    String
+  employmentType EmploymentType
+  workMode       WorkMode
+  salaryLPA      String
+  address        String?
+  location       String
+  experience     String
+  education      String?
+  requiredSkills String[]
+  vacancyCount   Int            @default(1)
+  applyCount     Int            @default(0)
+  lastDate       DateTime?
+  hrContact      String?
+  hrEmail        String?
+  status         JobStatus      @default(ACTIVE)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  applications JobApplication[]
+
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+}
+
+model JobApplication {
+  id        String               @id @default(cuid())
+  jobId     String
+  job       Job                  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status    JobApplicationStatus @default(APPLIED)
+  appliedAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  @@unique([userId, jobId])
+  @@index([jobId])
+  @@index([userId])
 }

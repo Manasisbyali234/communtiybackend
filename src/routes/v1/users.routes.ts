@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { usersController } from '../../controllers/users.controller';
 import { auth } from '../../middleware/auth';
 import { validate } from '../../middleware/validate';
+import { getUserApplications } from '../../controllers/jobs.controller';
 
 const router = Router();
 
@@ -76,5 +77,6 @@ router.delete('/:id/follow', usersController.unfollow);
 router.get('/:id/followers', validate({ query: CursorQuerySchema }), usersController.getFollowers);
 router.get('/:id/following', validate({ query: CursorQuerySchema }), usersController.getFollowing);
 router.get('/:id/posts', validate({ query: CursorQuerySchema }), usersController.getUserPosts);
+router.get('/:id/job-applications', getUserApplications);
 
 export default router;

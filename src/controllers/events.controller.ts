@@ -6,8 +6,17 @@ import { RsvpStatus } from '@prisma/client';
 
 export const eventsController = {
   list: asyncHandler(async (req: Request, res: Response) => {
-    const { cursor, limit, communityId, upcoming, search } = req.query as Record<string, string | undefined>;
-    const result = await eventsService.list({ cursor, limit: limit ? parseInt(limit) : 20, communityId, upcoming: upcoming === 'true', search, userId: req.user.id });
+    const { cursor, limit, communityId, upcoming, search, mine } = req.query as Record<string, string | boolean | undefined>;
+    const result = await eventsService.list({
+      cursor: typeof cursor === 'string' ? cursor : undefined,
+      limit: limit ? parseInt(String(limit)) : 20,
+      communityId: typeof communityId === 'string' ? communityId : undefined,
+      upcoming: upcoming === true || upcoming === 'true',
+      search: typeof search === 'string' ? search : undefined,
+      userId: req.user.id,
+      creatorId: mine === true || mine === 'true' ? req.user.id : undefined,
+      includeUnapproved: mine === true || mine === 'true',
+    });
     res.json(new ApiResponse(200, result));
   }),
 

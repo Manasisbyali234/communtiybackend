@@ -25,6 +25,7 @@ const QuerySchema = z.object({
   communityId: z.string().cuid().optional().or(z.literal('')).transform(v => v || undefined),
   upcoming: z.coerce.boolean().optional(),
   search: z.string().optional(),
+  mine: z.coerce.boolean().optional(),
 });
 
 router.get('/', validate({ query: QuerySchema }), eventsController.list);

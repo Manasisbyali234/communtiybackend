@@ -20,6 +20,23 @@ export const authService = {
       where: { OR: [{ email: data.email }, { username: data.username }] },
     });
     if (existing) {
+      if (!existing.isActive) {
+        // Reactivate the deactivated account with new credentials
+        const passwordHash = await hashPassword(data.password);
+        const user = await prisma.user.update({
+          where: { id: existing.id },
+          data: {
+            email: data.email,
+            username: data.username,
+            displayName: data.displayName,
+            passwordHash,
+            isActive: true,
+          },
+          select: { id: true, email: true, username: true, displayName: true, role: true, isVerified: true },
+        });
+        const tokens = await tokenService.generateTokenPair(user);
+        return { user, ...tokens };
+      }
       const field = existing.email === data.email ? 'email' : 'username';
       throw ApiError.conflict(`This ${field} is already registered`);
     }

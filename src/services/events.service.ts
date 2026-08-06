@@ -37,14 +37,17 @@ function normalizeCoverUrl(coverUrl: string | null | undefined): string | null {
 }
 
 export const eventsService = {
-  async list(params: { cursor?: string; limit?: number; communityId?: string; upcoming?: boolean; search?: string; userId?: string }) {
-    const { cursor, limit = 20, communityId, upcoming, search, userId } = params;
+  async list(params: { cursor?: string; limit?: number; communityId?: string; upcoming?: boolean; search?: string; userId?: string; creatorId?: string; includeUnapproved?: boolean }) {
+    const { cursor, limit = 20, communityId, upcoming, search, userId, creatorId, includeUnapproved = false } = params;
     const args = buildCursorArgs({ cursor, limit });
 
     const events = await prisma.event.findMany({
       ...args,
       where: {
-        status: EventStatus.APPROVED,
+        ...(includeUnapproved ? {} : { status: EventStatus.APPROVED }),
+        ...(creatorId
+          ? { OR: [{ creatorId }, { rsvps: { some: { userId: creatorId, status: RsvpStatus.GOING } } }] }
+          : {}),
         ...(communityId ? { communityId } : {}),
         ...(upcoming ? { startsAt: { gt: new Date() } } : {}),
         ...(search ? { OR: [{ title: { contains: search, mode: 'insensitive' } }, { location: { contains: search, mode: 'insensitive' } }] } : {}),
@@ -53,6 +56,7 @@ export const eventsService = {
         community: { select: { id: true, name: true, slug: true } },
         creator: { select: { id: true, displayName: true, username: true } },
         ...(userId ? { interests: { where: { userId }, select: { id: true } } } : {}),
+        ...(userId ? { rsvps: { where: { userId }, select: { status: true } } } : {}),
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -61,7 +65,10 @@ export const eventsService = {
       ...e,
       coverUrl: normalizeCoverUrl(e.coverUrl),
       isInterested: userId ? (e.interests?.length > 0) : false,
+      myRsvp: e.rsvps?.[0]?.status ?? null,
+      userRsvpStatus: e.rsvps?.[0]?.status ?? null,
       interests: undefined,
+      rsvps: undefined,
     }));
     console.log('[eventsService.list] sample coverUrls:', normalized.slice(0, 3).map((e: any) => ({ id: e.id, coverUrl: e.coverUrl })));
     return buildCursorPage(normalized, limit);

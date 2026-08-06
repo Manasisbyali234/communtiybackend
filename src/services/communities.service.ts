@@ -1,6 +1,6 @@
 import { prisma } from '../config/database';
 import { ApiError } from '../utils/ApiError';
-import { slugify, slugifyWithSuffix } from '../utils/slugify';
+import { slugify } from '../utils/slugify';
 import { buildCursorArgs, buildCursorPage } from '../utils/pagination';
 import { CommunityMemberRole, CommunityMemberStatus } from '@prisma/client';
 import { POST_SELECT } from './posts.service';
@@ -41,14 +41,14 @@ export const communitiesService = {
   async create(creatorId: string, data: { name: string; description?: string; category: string; isPrivate?: boolean; avatarUrl?: string; bannerUrl?: string; feedPostPrompts?: string[] }) {
     let slug = slugify(data.name);
     const existing = await prisma.community.findUnique({ where: { slug } });
-    if (existing) slug = slugifyWithSuffix(data.name, Date.now().toString(36));
+    if (existing) throw ApiError.conflict('A community with this name already exists');
 
     const community = await prisma.community.create({
       data: {
         ...data,
         slug,
         status: 'PENDING',
-        memberCount: 0,
+        memberCount: 1,
         members: { create: { userId: creatorId, role: CommunityMemberRole.ADMIN, status: CommunityMemberStatus.ACTIVE } },
       },
     });
@@ -290,19 +290,22 @@ export const communitiesService = {
     if (!community) throw ApiError.notFound('Community not found');
 
     if (community.isPrivate) {
-      const canView = await prisma.communityMember.findFirst({
-        where: {
-          communityId,
-          role: CommunityMemberRole.ADMIN,
-          status: CommunityMemberStatus.ACTIVE,
-          OR: [
-            { userId },
-            { user: { followers: { some: { followerId: userId } } } },
-          ],
-        },
+      const isAdmin = await prisma.communityMember.findFirst({
+        where: { communityId, userId, role: CommunityMemberRole.ADMIN, status: CommunityMemberStatus.ACTIVE },
         select: { id: true },
       });
-      if (!canView) throw ApiError.forbidden('This private community is only visible to the creator\'s followers');
+      if (!isAdmin) {
+        const followsAdmin = await prisma.communityMember.findFirst({
+          where: {
+            communityId,
+            role: CommunityMemberRole.ADMIN,
+            status: CommunityMemberStatus.ACTIVE,
+            user: { followers: { some: { followerId: userId } } },
+          },
+          select: { id: true },
+        });
+        if (!followsAdmin) throw ApiError.forbidden('This private community is only visible to the creator\'s followers');
+      }
     }
 
     const args = buildCursorArgs({ cursor, limit });

@@ -101,6 +101,7 @@ export const postsService = {
                 members: {
                   some: {
                     role: 'ADMIN' as any,
+                    status: 'ACTIVE' as any,
                     user: { followers: { some: { followerId: userId } } },
                   },
                 },

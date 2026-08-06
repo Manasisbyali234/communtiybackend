@@ -29,7 +29,24 @@ export const usersService = {
   },
 
   async deactivateMe(userId: string) {
-    await prisma.user.update({ where: { id: userId }, data: { isActive: false } });
+    // Keep the account record for audit/history, but release its unique login
+    // identifiers.  Merely setting isActive=false leaves the unique email and
+    // username occupied, which prevents a deleted user from registering again.
+    const deletedAt = new Date();
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        isActive: false,
+        deletedAt,
+        email: `deleted+${userId}@deleted.local`,
+        username: `deleted_${userId}`,
+        displayName: 'Deleted user',
+        avatarUrl: null,
+        bannerUrl: null,
+        coverImage: null,
+        bio: null,
+      },
+    });
     await prisma.refreshToken.deleteMany({ where: { userId } });
   },
 
