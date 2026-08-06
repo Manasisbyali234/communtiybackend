@@ -1,8 +1,36 @@
 import { Request, Response } from 'express';
+import path from 'path';
+import crypto from 'crypto';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { prisma } from '../config/database';
+import { s3, storageBucket } from '../config/storage';
+import { config } from '../config';
 import { ApiResponse } from '../utils/ApiResponse';
 import { ApiError } from '../utils/ApiError';
 import { asyncHandler } from '../utils/asyncHandler';
+
+// ── Admin: Upload Job Company Logo ───────────────────────────────────────────
+export const uploadJobLogo = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.file) throw new ApiError(400, 'No file provided');
+
+  const ALLOWED = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
+  if (!ALLOWED.has(req.file.mimetype.toLowerCase())) throw new ApiError(400, 'Only JPEG, PNG or WebP images allowed');
+  if (req.file.size > 5 * 1024 * 1024) throw new ApiError(400, 'Logo must be under 5MB');
+
+  const ext = path.extname(req.file.originalname) || '.jpg';
+  const key = `jobs/${crypto.randomUUID()}${ext}`;
+
+  await s3.send(new PutObjectCommand({
+    Bucket: storageBucket,
+    Key: key,
+    Body: req.file.buffer,
+    ContentType: req.file.mimetype,
+  }));
+
+  const url = `${config.APP_URL}/api/v1/media/proxy/${encodeURIComponent(key)}`;
+
+  res.json(new ApiResponse(200, { url }, 'Logo uploaded'));
+});
 
 // ── Admin: Create Job ─────────────────────────────────────────────────────────
 export const createJob = asyncHandler(async (req: Request, res: Response) => {

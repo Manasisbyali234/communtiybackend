@@ -1,15 +1,18 @@
 import { Router } from 'express';
 import { auth } from '../../middleware/auth';
 import { adminAuth } from '../../middleware/adminAuth';
+import { upload } from '../../middleware/upload';
 import {
   createJob, listJobsAdmin, listJobs, getJob, updateJob, deleteJob,
   applyJob, getUserApplications, checkApplied, updateApplicationStatus,
+  uploadJobLogo,
 } from '../../controllers/jobs.controller';
 
 const router = Router();
 
 // Static routes first (must come before /:id)
 router.get('/admin/all', adminAuth, listJobsAdmin);
+router.post('/upload-logo', adminAuth, upload.single('file'), uploadJobLogo);
 router.patch('/applications/:applicationId/status', adminAuth, updateApplicationStatus);
 router.get('/user/:userId/applications', auth, getUserApplications);
 

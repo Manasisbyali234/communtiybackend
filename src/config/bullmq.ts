@@ -77,7 +77,7 @@ class SimpleQueue {
           }
 
           // Check if job should be processed
-          if (job.processAfter && job.processAfter > now) {
+          if (job.processAfter && new Date(job.processAfter) > now) {
             continue;
           }
 
@@ -106,7 +106,7 @@ class SimpleQueue {
               await this.removeJob(jobKey);
             } else {
               // Retry after delay
-              job.processAfter = new Date(Date.now() + (job.attempts * 5000)); // Exponential backoff
+              job.processAfter = new Date(Date.now() + (job.attempts * 5000));
               await cacheService.set(jobKey, job);
             }
           }
