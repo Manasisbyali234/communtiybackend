@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { auth } from '../../middleware/auth';
-import { rbac } from '../../middleware/rbac';
+import { adminAuth } from '../../middleware/adminAuth';
 import { validate } from '../../middleware/validate';
 import { asyncHandler } from '../../utils/asyncHandler';
 import { ApiResponse } from '../../utils/ApiResponse';
@@ -55,8 +55,7 @@ router.get(
 // GET /referral/admin/all — all shares across all users
 router.get(
   '/admin/all',
-  auth,
-  rbac('ADMIN'),
+  adminAuth,
   asyncHandler(async (_req, res) => {
     const shares = await prisma.profileShare.findMany({
       orderBy: { createdAt: 'desc' },
@@ -71,8 +70,7 @@ router.get(
 // GET /referral/admin/referrals — users who registered via a referral link
 router.get(
   '/admin/referrals',
-  auth,
-  rbac('ADMIN'),
+  adminAuth,
   asyncHandler(async (_req, res) => {
     const referred = await prisma.user.findMany({
       where: { referredById: { not: null } },
