@@ -98,6 +98,8 @@ enum NotificationType {
   EVENT_LIKE
   EVENT_COMMENT
   EVENT_SHARE
+  MATRIMONY_INTEREST_RECEIVED
+  MATRIMONY_INTEREST_ACCEPTED
 }
 
 enum ConnectionStatus {
@@ -183,6 +185,7 @@ model User {
   referrals          User[]              @relation("Referrals")
   profileShares      ProfileShare[]
   jobApplications    JobApplication[]
+  matrimonyProfile   MatrimonyProfile?
 
   @@index([email])
   @@index([username])
@@ -898,4 +901,98 @@ model JobApplication {
   @@unique([userId, jobId])
   @@index([jobId])
   @@index([userId])
+}
+
+// ─── Matrimony ────────────────────────────────────────────────────────────────
+
+enum MatrimonyGender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum MatrimonyMaritalStatus {
+  NEVER_MARRIED
+  DIVORCED
+  WIDOWED
+  SEPARATED
+}
+
+enum MatrimonyEducation {
+  HIGH_SCHOOL
+  DIPLOMA
+  BACHELORS
+  MASTERS
+  PHD
+  OTHER
+}
+
+enum MatrimonyInterestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+model MatrimonyProfile {
+  id               String                  @id @default(cuid())
+  userId           String                  @unique
+  user             User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName      String
+  gender           MatrimonyGender
+  dateOfBirth      DateTime                @db.Date
+  height           String
+  maritalStatus    MatrimonyMaritalStatus  @default(NEVER_MARRIED)
+  religion         String
+  caste            String?
+  motherTongue     String
+  education        MatrimonyEducation      @default(OTHER)
+  educationDetails String?
+  occupation       String
+  annualIncome     String?
+  city             String
+  state            String
+  aboutMe          String?
+  hobbies          String[]
+  diet             String?
+  familyType       String?
+  fatherOccupation String?
+  motherOccupation String?
+  siblings         Int?
+  photos           String[]
+  isVerified       Boolean                 @default(false)
+  isActive         Boolean                 @default(true)
+  partnerMinAge    Int?
+  partnerMaxAge    Int?
+  partnerReligion  String?
+  partnerCaste     String?
+  partnerEducation String?
+  partnerCity      String?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  interestsSent     MatrimonyInterest[]    @relation("InterestFrom")
+  interestsReceived MatrimonyInterest[]    @relation("InterestTo")
+
+  @@index([gender])
+  @@index([religion])
+  @@index([city])
+  @@index([isActive])
+  @@index([createdAt(sort: Desc)])
+}
+
+model MatrimonyInterest {
+  id            String                  @id @default(cuid())
+  fromProfileId String
+  fromProfile   MatrimonyProfile        @relation("InterestFrom", fields: [fromProfileId], references: [id], onDelete: Cascade)
+  toProfileId   String
+  toProfile     MatrimonyProfile        @relation("InterestTo", fields: [toProfileId], references: [id], onDelete: Cascade)
+  status        MatrimonyInterestStatus @default(PENDING)
+  message       String?
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+
+  @@unique([fromProfileId, toProfileId])
+  @@index([fromProfileId])
+  @@index([toProfileId])
+  @@index([status])
 }

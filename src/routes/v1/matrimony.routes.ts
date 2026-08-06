@@ -1,0 +1,37 @@
+import { Router } from 'express';
+import { auth } from '../../middleware/auth';
+import { adminAuth } from '../../middleware/adminAuth';
+import { upload } from '../../middleware/upload';
+import {
+  createProfile, getMyProfile, updateProfile,
+  listProfiles, getProfile, getMatches,
+  expressInterest, getInterests, respondInterest,
+  verifyProfile, listProfilesAdmin, deleteProfile,
+  uploadPhoto, deletePhoto,
+} from '../../controllers/matrimony.controller';
+
+const router = Router();
+
+// ── Admin routes ──────────────────────────────────────────────────────────────
+router.get('/admin/all', adminAuth, listProfilesAdmin);
+router.patch('/admin/:id/verify', adminAuth, verifyProfile);
+router.delete('/admin/:id', adminAuth, deleteProfile);
+
+// ── Photo upload / delete ─────────────────────────────────────────────────────
+router.post('/upload-photo', auth, upload.single('file'), uploadPhoto);
+router.delete('/delete-photo', auth, deletePhoto);
+
+// ── Authenticated user routes ─────────────────────────────────────────────────
+router.get('/my-profile', auth, getMyProfile);
+router.get('/matches', auth, getMatches);
+router.get('/interests', auth, getInterests);
+router.post('/interests', auth, expressInterest);
+router.patch('/interests/:interestId', auth, respondInterest);
+
+// ── Profile CRUD ──────────────────────────────────────────────────────────────
+router.get('/profiles', auth, listProfiles);
+router.post('/profiles', auth, createProfile);
+router.get('/profiles/:id', auth, getProfile);
+router.put('/profiles/:id', auth, updateProfile);
+
+export default router;
