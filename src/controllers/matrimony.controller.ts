@@ -12,6 +12,7 @@ import { notificationsService } from '../services/notifications.service';
 
 const MIN_PHOTOS = 4;
 const MAX_PHOTOS = 5;
+const AGE_BUFFER = 2; // ±2 years smart default
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -34,31 +35,19 @@ function _withAge(profile: any) {
 
 function computeMatchScore(mine: any, other: any): number {
   let score = 0;
-
-  // Age preference (30 pts)
   if (mine.partnerMinAge && mine.partnerMaxAge) {
     if (other.age >= mine.partnerMinAge && other.age <= mine.partnerMaxAge) score += 30;
     else if (other.age >= mine.partnerMinAge - 3 && other.age <= mine.partnerMaxAge + 3) score += 15;
   } else {
     score += 15;
   }
-
-  // Religion (25 pts)
   if (!mine.partnerReligion || mine.partnerReligion.toLowerCase() === other.religion?.toLowerCase()) score += 25;
-
-  // Caste (20 pts)
   if (!mine.partnerCaste || mine.partnerCaste.toLowerCase() === other.caste?.toLowerCase()) score += 20;
-
-  // Education (15 pts)
   if (!mine.partnerEducation || mine.partnerEducation === other.education) score += 15;
-
-  // City (10 pts)
   if (!mine.partnerCity || mine.partnerCity.toLowerCase() === other.city?.toLowerCase()) score += 10;
-
   return Math.min(score, 100);
 }
 
-// Extract S3 key from a proxy URL
 function _keyFromUrl(url: string): string | null {
   try {
     const match = url.match(/\/media\/proxy\/(.+)$/);
@@ -66,6 +55,23 @@ function _keyFromUrl(url: string): string | null {
   } catch {
     return null;
   }
+}
+
+// Build dateOfBirth range from age range
+function _dobRange(minAge?: number, maxAge?: number) {
+  const today = new Date();
+  const range: any = {};
+  if (maxAge !== undefined) {
+    const minDob = new Date(today);
+    minDob.setFullYear(today.getFullYear() - maxAge - 1);
+    range.gte = minDob;
+  }
+  if (minAge !== undefined) {
+    const maxDob = new Date(today);
+    maxDob.setFullYear(today.getFullYear() - minAge);
+    range.lte = maxDob;
+  }
+  return range;
 }
 
 // ── Create Profile ────────────────────────────────────────────────────────────
@@ -89,49 +95,49 @@ export const createProfile = asyncHandler(async (req: Request, res: Response) =>
   }
 
   const photoList: string[] = Array.isArray(photos) ? photos : [];
-  if (photoList.length < MIN_PHOTOS) {
-    throw new ApiError(400, `At least ${MIN_PHOTOS} photos are required`);
-  }
-  if (photoList.length > MAX_PHOTOS) {
-    throw new ApiError(400, `Maximum ${MAX_PHOTOS} photos allowed`);
-  }
+  if (photoList.length < MIN_PHOTOS) throw new ApiError(400, `At least ${MIN_PHOTOS} photos are required`);
+  if (photoList.length > MAX_PHOTOS) throw new ApiError(400, `Maximum ${MAX_PHOTOS} photos allowed`);
 
   const profile = await prisma.matrimonyProfile.create({
     data: {
-      userId,
-      displayName,
-      gender,
+      userId, displayName, gender,
       dateOfBirth: new Date(dateOfBirth),
       height: height ?? '',
       maritalStatus: maritalStatus ?? 'NEVER_MARRIED',
       religion: religion ?? '',
-      caste,
-      motherTongue: motherTongue ?? '',
+      caste, motherTongue: motherTongue ?? '',
       education: education ?? 'OTHER',
-      educationDetails,
-      occupation: occupation ?? '',
-      annualIncome,
-      city,
-      state: state ?? '',
-      aboutMe,
-      hobbies: hobbies ?? [],
-      diet,
-      familyType,
-      fatherOccupation,
-      motherOccupation,
+      educationDetails, occupation: occupation ?? '',
+      annualIncome, city, state: state ?? '',
+      aboutMe, hobbies: hobbies ?? [],
+      diet, familyType, fatherOccupation, motherOccupation,
       siblings: siblings != null ? Number(siblings) : null,
       photos: photoList,
+      approvalStatus: 'PENDING',
       partnerMinAge: partnerMinAge != null ? Number(partnerMinAge) : null,
       partnerMaxAge: partnerMaxAge != null ? Number(partnerMaxAge) : null,
-      partnerReligion,
-      partnerCaste,
-      partnerEducation,
-      partnerCity,
+      partnerReligion, partnerCaste, partnerEducation, partnerCity,
     },
     include: { user: { select: { avatarUrl: true } } },
   });
 
-  res.status(201).json(new ApiResponse(201, _withAge(profile), 'Profile created'));
+  // Notify all admins about new profile pending approval
+  const admins = await prisma.user.findMany({
+    where: { role: 'ADMIN', isActive: true, deletedAt: null },
+    select: { id: true },
+  });
+  await Promise.all(admins.map(admin =>
+    notificationsService.create({
+      recipientId: admin.id,
+      type: 'MATRIMONY_INTEREST_RECEIVED', // reuse as admin alert — or add dedicated type
+      actorId: userId,
+      entityId: profile.id,
+      entityType: 'MatrimonyProfile',
+      body: `New matrimony profile submitted by ${displayName} — pending approval`,
+    })
+  ));
+
+  res.status(201).json(new ApiResponse(201, _withAge(profile), 'Profile submitted for approval'));
 });
 
 // ── Get My Profile ────────────────────────────────────────────────────────────
@@ -157,23 +163,21 @@ export const updateProfile = asyncHandler(async (req: Request, res: Response) =>
   if (!profile) throw new ApiError(404, 'Profile not found');
   if (profile.userId !== userId) throw new ApiError(403, 'Forbidden');
 
-  const { userId: _u, isVerified: _v, ...data } = req.body;
+  const { userId: _u, isVerified: _v, approvalStatus: _a, ...data } = req.body;
 
-  // Validate photo count if photos are being updated
   if (data.photos !== undefined) {
     const photoList: string[] = Array.isArray(data.photos) ? data.photos : [];
-    if (photoList.length < MIN_PHOTOS) {
-      throw new ApiError(400, `At least ${MIN_PHOTOS} photos are required`);
-    }
-    if (photoList.length > MAX_PHOTOS) {
-      throw new ApiError(400, `Maximum ${MAX_PHOTOS} photos allowed`);
-    }
+    if (photoList.length < MIN_PHOTOS) throw new ApiError(400, `At least ${MIN_PHOTOS} photos are required`);
+    if (photoList.length > MAX_PHOTOS) throw new ApiError(400, `Maximum ${MAX_PHOTOS} photos allowed`);
   }
 
   const updated = await prisma.matrimonyProfile.update({
     where: { id },
     data: {
       ...data,
+      // Re-submit for approval when profile is updated
+      approvalStatus: 'PENDING',
+      rejectionReason: null,
       dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined,
       siblings: data.siblings != null ? Number(data.siblings) : undefined,
       partnerMinAge: data.partnerMinAge != null ? Number(data.partnerMinAge) : undefined,
@@ -182,7 +186,7 @@ export const updateProfile = asyncHandler(async (req: Request, res: Response) =>
     include: { user: { select: { avatarUrl: true } } },
   });
 
-  res.json(new ApiResponse(200, _withAge(updated), 'Profile updated'));
+  res.json(new ApiResponse(200, _withAge(updated), 'Profile updated and re-submitted for approval'));
 });
 
 // ── Browse Profiles ───────────────────────────────────────────────────────────
@@ -193,16 +197,36 @@ export const listProfiles = asyncHandler(async (req: Request, res: Response) => 
     education, city, search, skip = '0', take = '20',
   } = req.query as Record<string, string>;
 
-  const where: any = { isActive: true };
+  // Only show APPROVED + active profiles
+  const where: any = { isActive: true, approvalStatus: 'APPROVED' };
 
-  // Fetch myProfile once — used for both exclusion and interest map
-  let myProfile: { id: string } | null = null;
+  // Fetch requesting user's profile for exclusion + smart defaults
+  let myProfile: { id: string; gender: string; dateOfBirth: Date } | null = null;
   if (userId) {
-    myProfile = await prisma.matrimonyProfile.findUnique({ where: { userId }, select: { id: true } });
+    myProfile = await prisma.matrimonyProfile.findUnique({
+      where: { userId },
+      select: { id: true, gender: true, dateOfBirth: true },
+    });
     if (myProfile) where.id = { not: myProfile.id };
   }
 
-  if (gender) where.gender = gender;
+  // ── Gender: auto opposite gender if not specified ──────────────────────────
+  if (gender) {
+    where.gender = gender;
+  } else if (myProfile) {
+    where.gender = myProfile.gender === 'MALE' ? 'FEMALE'
+      : myProfile.gender === 'FEMALE' ? 'MALE'
+      : undefined;
+  }
+
+  // ── Age: use ±2 smart default based on user's own age if not specified ─────
+  if (minAge || maxAge) {
+    where.dateOfBirth = _dobRange(Number(minAge), Number(maxAge));
+  } else if (myProfile) {
+    const myAge = calcAge(new Date(myProfile.dateOfBirth));
+    where.dateOfBirth = _dobRange(myAge - AGE_BUFFER, myAge + AGE_BUFFER);
+  }
+
   if (religion) where.religion = { contains: religion, mode: 'insensitive' };
   if (caste) where.caste = { contains: caste, mode: 'insensitive' };
   if (maritalStatus) where.maritalStatus = maritalStatus;
@@ -216,21 +240,6 @@ export const listProfiles = asyncHandler(async (req: Request, res: Response) => 
       { occupation: { contains: search, mode: 'insensitive' } },
       { caste: { contains: search, mode: 'insensitive' } },
     ];
-  }
-
-  if (minAge || maxAge) {
-    const today = new Date();
-    where.dateOfBirth = {};
-    if (maxAge) {
-      const minDob = new Date(today);
-      minDob.setFullYear(today.getFullYear() - Number(maxAge) - 1);
-      where.dateOfBirth.gte = minDob;
-    }
-    if (minAge) {
-      const maxDob = new Date(today);
-      maxDob.setFullYear(today.getFullYear() - Number(minAge));
-      where.dateOfBirth.lte = maxDob;
-    }
   }
 
   const profiles = await prisma.matrimonyProfile.findMany({
@@ -268,6 +277,9 @@ export const getProfile = asyncHandler(async (req: Request, res: Response) => {
     include: { user: { select: { avatarUrl: true } } },
   });
   if (!profile) throw new ApiError(404, 'Profile not found');
+  if (profile.approvalStatus !== 'APPROVED' && profile.userId !== userId) {
+    throw new ApiError(404, 'Profile not found');
+  }
 
   let hasExpressedInterest = false;
   let interestStatus = null;
@@ -295,26 +307,18 @@ export const getMatches = asyncHandler(async (req: Request, res: Response) => {
   if (!myProfile) throw new ApiError(404, 'Create your profile first to see matches');
 
   const oppositeGender = myProfile.gender === 'MALE' ? 'FEMALE' : myProfile.gender === 'FEMALE' ? 'MALE' : undefined;
-  const where: any = { isActive: true, id: { not: myProfile.id } };
+  const myAge = calcAge(new Date(myProfile.dateOfBirth));
+
+  const where: any = { isActive: true, approvalStatus: 'APPROVED', id: { not: myProfile.id } };
   if (oppositeGender) where.gender = oppositeGender;
 
   if (myProfile.partnerReligion) where.religion = { contains: myProfile.partnerReligion, mode: 'insensitive' };
   if (myProfile.partnerCaste) where.caste = { contains: myProfile.partnerCaste, mode: 'insensitive' };
 
-  if (myProfile.partnerMinAge || myProfile.partnerMaxAge) {
-    const today = new Date();
-    where.dateOfBirth = {};
-    if (myProfile.partnerMaxAge) {
-      const minDob = new Date(today);
-      minDob.setFullYear(today.getFullYear() - myProfile.partnerMaxAge - 1);
-      where.dateOfBirth.gte = minDob;
-    }
-    if (myProfile.partnerMinAge) {
-      const maxDob = new Date(today);
-      maxDob.setFullYear(today.getFullYear() - myProfile.partnerMinAge);
-      where.dateOfBirth.lte = maxDob;
-    }
-  }
+  // Use partner preference age range, fallback to ±2 of own age
+  const minAge = myProfile.partnerMinAge ?? myAge - AGE_BUFFER;
+  const maxAge = myProfile.partnerMaxAge ?? myAge + AGE_BUFFER;
+  where.dateOfBirth = _dobRange(minAge, maxAge);
 
   const profiles = await prisma.matrimonyProfile.findMany({
     where,
@@ -337,9 +341,12 @@ export const expressInterest = asyncHandler(async (req: Request, res: Response) 
 
   const myProfile = await prisma.matrimonyProfile.findUnique({
     where: { userId },
-    select: { id: true, displayName: true },
+    select: { id: true, displayName: true, approvalStatus: true },
   });
   if (!myProfile) throw new ApiError(404, 'Create your profile first');
+  if (myProfile.approvalStatus !== 'APPROVED') {
+    throw new ApiError(403, 'Your profile must be approved before sending interests');
+  }
 
   const { toProfileId, message } = req.body;
   if (!toProfileId) throw new ApiError(400, 'toProfileId is required');
@@ -347,9 +354,9 @@ export const expressInterest = asyncHandler(async (req: Request, res: Response) 
 
   const toProfile = await prisma.matrimonyProfile.findUnique({
     where: { id: toProfileId },
-    select: { id: true, userId: true, displayName: true },
+    select: { id: true, userId: true, displayName: true, approvalStatus: true },
   });
-  if (!toProfile) throw new ApiError(404, 'Target profile not found');
+  if (!toProfile || toProfile.approvalStatus !== 'APPROVED') throw new ApiError(404, 'Profile not found');
 
   const existing = await prisma.matrimonyInterest.findUnique({
     where: { fromProfileId_toProfileId: { fromProfileId: myProfile.id, toProfileId } },
@@ -364,7 +371,6 @@ export const expressInterest = asyncHandler(async (req: Request, res: Response) 
     },
   });
 
-  // Notify the recipient
   await notificationsService.create({
     recipientId: toProfile.userId,
     type: 'MATRIMONY_INTEREST_RECEIVED',
@@ -377,7 +383,7 @@ export const expressInterest = asyncHandler(async (req: Request, res: Response) 
   res.status(201).json(new ApiResponse(201, interest, 'Interest sent'));
 });
 
-// ── Get Interests (sent + received) ──────────────────────────────────────────
+// ── Get Interests ─────────────────────────────────────────────────────────────
 export const getInterests = asyncHandler(async (req: Request, res: Response) => {
   const userId = (req as any).user?.id;
   if (!userId) throw new ApiError(401, 'Unauthorized');
@@ -386,9 +392,7 @@ export const getInterests = asyncHandler(async (req: Request, res: Response) => 
   if (!myProfile) return res.json(new ApiResponse(200, []));
 
   const interests = await prisma.matrimonyInterest.findMany({
-    where: {
-      OR: [{ fromProfileId: myProfile.id }, { toProfileId: myProfile.id }],
-    },
+    where: { OR: [{ fromProfileId: myProfile.id }, { toProfileId: myProfile.id }] },
     orderBy: { createdAt: 'desc' },
     include: {
       fromProfile: {
@@ -435,9 +439,7 @@ export const respondInterest = asyncHandler(async (req: Request, res: Response) 
   const { interestId } = req.params;
   const { status } = req.body;
 
-  if (!['ACCEPTED', 'REJECTED'].includes(status)) {
-    throw new ApiError(400, 'status must be ACCEPTED or REJECTED');
-  }
+  if (!['ACCEPTED', 'REJECTED'].includes(status)) throw new ApiError(400, 'status must be ACCEPTED or REJECTED');
 
   const interest = await prisma.matrimonyInterest.findUnique({
     where: { id: interestId },
@@ -447,12 +449,8 @@ export const respondInterest = asyncHandler(async (req: Request, res: Response) 
   if (interest.toProfileId !== myProfile.id) throw new ApiError(403, 'Forbidden');
   if (interest.status !== 'PENDING') throw new ApiError(400, 'Interest already responded to');
 
-  const updated = await prisma.matrimonyInterest.update({
-    where: { id: interestId },
-    data: { status },
-  });
+  const updated = await prisma.matrimonyInterest.update({ where: { id: interestId }, data: { status } });
 
-  // Notify the sender only on acceptance
   if (status === 'ACCEPTED' && interest.fromProfile?.userId) {
     await notificationsService.create({
       recipientId: interest.fromProfile.userId,
@@ -474,12 +472,9 @@ export const uploadPhoto = asyncHandler(async (req: Request, res: Response) => {
   if (!req.file) throw new ApiError(400, 'No file provided');
 
   const ALLOWED = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
-  if (!ALLOWED.has(req.file.mimetype.toLowerCase())) {
-    throw new ApiError(400, 'Only JPEG, PNG or WebP images allowed');
-  }
+  if (!ALLOWED.has(req.file.mimetype.toLowerCase())) throw new ApiError(400, 'Only JPEG, PNG or WebP images allowed');
   if (req.file.size > 8 * 1024 * 1024) throw new ApiError(400, 'Photo must be under 8MB');
 
-  // Check current photo count if profile exists
   const profile = await prisma.matrimonyProfile.findUnique({ where: { userId }, select: { photos: true } });
   if (profile && profile.photos.length >= MAX_PHOTOS) {
     throw new ApiError(400, `Maximum ${MAX_PHOTOS} photos allowed. Remove a photo first.`);
@@ -489,10 +484,8 @@ export const uploadPhoto = asyncHandler(async (req: Request, res: Response) => {
   const key = `matrimony/${crypto.randomUUID()}${ext}`;
 
   await s3.send(new PutObjectCommand({
-    Bucket: storageBucket,
-    Key: key,
-    Body: req.file.buffer,
-    ContentType: req.file.mimetype,
+    Bucket: storageBucket, Key: key,
+    Body: req.file.buffer, ContentType: req.file.mimetype,
   }));
 
   const url = `${config.APP_URL}/api/v1/media/proxy/${encodeURIComponent(key)}`;
@@ -511,38 +504,79 @@ export const deletePhoto = asyncHandler(async (req: Request, res: Response) => {
   if (!profile) throw new ApiError(404, 'Profile not found');
   if (!profile.photos.includes(photoUrl)) throw new ApiError(404, 'Photo not found in profile');
 
-  // Delete from S3
   const key = _keyFromUrl(photoUrl);
   if (key) {
-    try {
-      await s3.send(new DeleteObjectCommand({ Bucket: storageBucket, Key: key }));
-    } catch {
-      // Non-fatal — remove from DB regardless
-    }
+    try { await s3.send(new DeleteObjectCommand({ Bucket: storageBucket, Key: key })); } catch { }
   }
 
   const updatedPhotos = profile.photos.filter(p => p !== photoUrl);
-  await prisma.matrimonyProfile.update({
-    where: { id: profile.id },
-    data: { photos: updatedPhotos },
-  });
+  await prisma.matrimonyProfile.update({ where: { id: profile.id }, data: { photos: updatedPhotos } });
 
   res.json(new ApiResponse(200, { photos: updatedPhotos }, 'Photo deleted'));
 });
 
-// ── Admin: Verify Profile ─────────────────────────────────────────────────────
-export const verifyProfile = asyncHandler(async (req: Request, res: Response) => {
+// ── Admin: Approve Profile ────────────────────────────────────────────────────
+export const approveProfile = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const profile = await prisma.matrimonyProfile.update({
+  const profile = await prisma.matrimonyProfile.findUnique({
     where: { id },
-    data: { isVerified: true },
+    select: { id: true, userId: true, displayName: true },
   });
-  res.json(new ApiResponse(200, profile, 'Profile verified'));
+  if (!profile) throw new ApiError(404, 'Profile not found');
+
+  await prisma.matrimonyProfile.update({
+    where: { id },
+    data: { approvalStatus: 'APPROVED', isVerified: true, rejectionReason: null },
+  });
+
+  await notificationsService.create({
+    recipientId: profile.userId,
+    type: 'MATRIMONY_PROFILE_APPROVED',
+    entityId: id,
+    entityType: 'MatrimonyProfile',
+    body: `Your matrimony profile has been approved! You are now visible to other members 💍`,
+  });
+
+  res.json(new ApiResponse(200, null, 'Profile approved'));
+});
+
+// ── Admin: Reject Profile ─────────────────────────────────────────────────────
+export const rejectProfile = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { reason } = req.body;
+
+  const profile = await prisma.matrimonyProfile.findUnique({
+    where: { id },
+    select: { id: true, userId: true },
+  });
+  if (!profile) throw new ApiError(404, 'Profile not found');
+
+  await prisma.matrimonyProfile.update({
+    where: { id },
+    data: { approvalStatus: 'REJECTED', rejectionReason: reason ?? null },
+  });
+
+  await notificationsService.create({
+    recipientId: profile.userId,
+    type: 'MATRIMONY_PROFILE_REJECTED',
+    entityId: id,
+    entityType: 'MatrimonyProfile',
+    body: reason
+      ? `Your matrimony profile was rejected: ${reason}`
+      : `Your matrimony profile was rejected. Please update and resubmit.`,
+  });
+
+  res.json(new ApiResponse(200, null, 'Profile rejected'));
 });
 
 // ── Admin: List All Profiles ──────────────────────────────────────────────────
-export const listProfilesAdmin = asyncHandler(async (_req: Request, res: Response) => {
+export const listProfilesAdmin = asyncHandler(async (req: Request, res: Response) => {
+  const { status } = req.query as Record<string, string>;
+  const where: any = {};
+  if (status) where.approvalStatus = status;
+
   const profiles = await prisma.matrimonyProfile.findMany({
+    where,
     orderBy: { createdAt: 'desc' },
     include: { user: { select: { email: true, avatarUrl: true } } },
   });
@@ -554,3 +588,6 @@ export const deleteProfile = asyncHandler(async (req: Request, res: Response) =>
   await prisma.matrimonyProfile.delete({ where: { id: req.params.id } });
   res.json(new ApiResponse(200, null, 'Profile deleted'));
 });
+
+// ── Legacy: kept for backward compat ─────────────────────────────────────────
+export const verifyProfile = approveProfile;

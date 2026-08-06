@@ -21,3 +21,14 @@ export function auth(req: Request, _res: Response, next: NextFunction): void {
     next(ApiError.unauthorized('Invalid or expired access token'));
   }
 }
+
+// Optional auth — attaches user if token present, continues without error if not
+export function optionalAuth(req: Request, _res: Response, next: NextFunction): void {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) return next();
+  try {
+    const payload = jwt.verify(authHeader.slice(7), config.JWT_ACCESS_SECRET) as JwtPayload;
+    req.user = { id: payload.sub, email: payload.email, role: payload.role };
+  } catch { /* ignore */ }
+  next();
+}

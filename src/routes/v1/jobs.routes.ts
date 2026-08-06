@@ -7,6 +7,7 @@ import {
   applyJob, getUserApplications, checkApplied, updateApplicationStatus,
   uploadJobLogo,
 } from '../../controllers/jobs.controller';
+import { optionalAuth } from '../../middleware/auth';
 
 const router = Router();
 
@@ -14,10 +15,11 @@ const router = Router();
 router.get('/admin/all', adminAuth, listJobsAdmin);
 router.post('/upload-logo', adminAuth, upload.single('file'), uploadJobLogo);
 router.patch('/applications/:applicationId/status', adminAuth, updateApplicationStatus);
+router.get('/my-applications', auth, getUserApplications);
 router.get('/user/:userId/applications', auth, getUserApplications);
 
 // Public list & create
-router.get('/', listJobs);
+router.get('/', optionalAuth, listJobs);
 router.post('/', adminAuth, createJob);
 
 // Dynamic :id routes

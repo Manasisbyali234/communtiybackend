@@ -100,6 +100,8 @@ enum NotificationType {
   EVENT_SHARE
   MATRIMONY_INTEREST_RECEIVED
   MATRIMONY_INTEREST_ACCEPTED
+  MATRIMONY_PROFILE_APPROVED
+  MATRIMONY_PROFILE_REJECTED
 }
 
 enum ConnectionStatus {
@@ -933,6 +935,12 @@ enum MatrimonyInterestStatus {
   REJECTED
 }
 
+enum MatrimonyApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model MatrimonyProfile {
   id               String                  @id @default(cuid())
   userId           String                  @unique
@@ -961,6 +969,8 @@ model MatrimonyProfile {
   photos           String[]
   isVerified       Boolean                 @default(false)
   isActive         Boolean                 @default(true)
+  approvalStatus   MatrimonyApprovalStatus @default(PENDING)
+  rejectionReason  String?
   partnerMinAge    Int?
   partnerMaxAge    Int?
   partnerReligion  String?
@@ -977,6 +987,7 @@ model MatrimonyProfile {
   @@index([religion])
   @@index([city])
   @@index([isActive])
+  @@index([approvalStatus])
   @@index([createdAt(sort: Desc)])
 }
 

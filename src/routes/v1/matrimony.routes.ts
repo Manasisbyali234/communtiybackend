@@ -6,15 +6,16 @@ import {
   createProfile, getMyProfile, updateProfile,
   listProfiles, getProfile, getMatches,
   expressInterest, getInterests, respondInterest,
-  verifyProfile, listProfilesAdmin, deleteProfile,
-  uploadPhoto, deletePhoto,
+  approveProfile, rejectProfile, listProfilesAdmin,
+  deleteProfile, uploadPhoto, deletePhoto,
 } from '../../controllers/matrimony.controller';
 
 const router = Router();
 
 // ── Admin routes ──────────────────────────────────────────────────────────────
-router.get('/admin/all', adminAuth, listProfilesAdmin);
-router.patch('/admin/:id/verify', adminAuth, verifyProfile);
+router.get('/admin/all', adminAuth, listProfilesAdmin);           // ?status=PENDING|APPROVED|REJECTED
+router.patch('/admin/:id/approve', adminAuth, approveProfile);
+router.patch('/admin/:id/reject', adminAuth, rejectProfile);
 router.delete('/admin/:id', adminAuth, deleteProfile);
 
 // ── Photo upload / delete ─────────────────────────────────────────────────────

@@ -71,6 +71,7 @@ export const listJobsAdmin = asyncHandler(async (_req: Request, res: Response) =
 
 // ── Public: List Active Jobs ──────────────────────────────────────────────────
 export const listJobs = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.id;
   const { search, location, employmentType, workMode, skip = '0', take = '20' } = req.query as Record<string, string>;
 
   const where: any = { status: 'ACTIVE' };
@@ -91,7 +92,24 @@ export const listJobs = asyncHandler(async (req: Request, res: Response) => {
     skip: Number(skip),
     take: Number(take),
   });
-  res.json(new ApiResponse(200, jobs));
+
+  // Attach hasApplied flag for logged-in users
+  if (userId && jobs.length > 0) {
+    const jobIds = jobs.map(j => j.id);
+    const applications = await prisma.jobApplication.findMany({
+      where: { userId, jobId: { in: jobIds } },
+      select: { jobId: true, status: true },
+    });
+    const appliedMap = Object.fromEntries(applications.map(a => [a.jobId, a.status]));
+    const result = jobs.map(j => ({
+      ...j,
+      hasApplied: !!appliedMap[j.id],
+      applicationStatus: appliedMap[j.id] ?? null,
+    }));
+    return res.json(new ApiResponse(200, result));
+  }
+
+  res.json(new ApiResponse(200, jobs.map(j => ({ ...j, hasApplied: false, applicationStatus: null }))));
 });
 
 // ── Get Single Job ────────────────────────────────────────────────────────────
