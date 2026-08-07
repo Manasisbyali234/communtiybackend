@@ -5,6 +5,7 @@ export declare const authService: {
         username: string;
         displayName: string;
         password: string;
+        referredById?: string;
     }): Promise<{
         accessToken: string;
         refreshToken: string;
@@ -25,13 +26,13 @@ export declare const authService: {
             id: string;
             username: string;
             displayName: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
             role: import(".prisma/client").$Enums.Role;
             isVerified: boolean;
             isActive: boolean;
             isBanned: boolean;
-            banReason: string | null;
-            banExpiresAt: Date | null;
+            banReason: string;
+            banExpiresAt: Date;
         };
     }>;
     logout(refreshToken: string): Promise<void>;

@@ -6,7 +6,7 @@ const index_1 = require("./index");
 const globalForPrisma = globalThis;
 exports.prisma = globalForPrisma.prisma ??
     new client_1.PrismaClient({
-        log: index_1.config.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+        log: ['error', 'warn'],
     });
 if (index_1.config.NODE_ENV !== 'production') {
     globalForPrisma.prisma = exports.prisma;

@@ -6,7 +6,7 @@ export declare const blocksService: {
         id: string;
         username: string;
         displayName: string;
-        avatarUrl: string | null;
+        avatarUrl: string;
     }>>;
     /**
      * Returns blocked user IDs (both directions) for filtering feeds/search.

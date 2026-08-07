@@ -68,6 +68,16 @@ export function errorHandler(
       });
       return;
     }
+    if (err.code === 'P2003') {
+      storeMessage('Related record not found');
+      res.status(400).json({
+        success: false,
+        statusCode: 400,
+        message: 'Related record not found',
+        errors: [],
+      });
+      return;
+    }
   }
 
   // ── Unknown / unexpected error ─────────────────────────────────────────────

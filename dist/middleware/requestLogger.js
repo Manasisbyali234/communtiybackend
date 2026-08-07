@@ -18,8 +18,11 @@ exports.requestLogger = (0, pino_http_1.default)({
     customSuccessMessage: (req, res) => {
         return `${req.method} ${req.url} ${res.statusCode}`;
     },
-    customErrorMessage: (req, res, err) => {
-        return `${req.method} ${req.url} ${res.statusCode} - ${err.message}`;
+    customErrorMessage: (req, res, _pinoErr) => {
+        // _pinoErr is always a generic "failed with status code N" from pino-http.
+        // The real error is attached to res.locals by the errorHandler.
+        const realMsg = res.locals?.errorMessage ?? _pinoErr.message;
+        return `${req.method} ${req.url} ${res.statusCode} - ${realMsg}`;
     },
     customLogLevel: (_req, res, err) => {
         if (err || res.statusCode >= 500)

@@ -7,10 +7,10 @@ const auth_1 = require("../../middleware/auth");
 const validate_1 = require("../../middleware/validate");
 const router = (0, express_1.Router)();
 router.use(auth_1.auth);
-const StartConversationSchema = zod_1.z.object({ participantId: zod_1.z.string().cuid() });
+const StartConversationSchema = zod_1.z.object({ participantId: zod_1.z.string().min(1) });
 const SendMessageSchema = zod_1.z.object({
     content: zod_1.z.string().max(5000).optional(),
-    mediaUrl: zod_1.z.string().url().optional(),
+    mediaUrl: zod_1.z.string().min(1).optional(), // accepts both absolute URLs and relative proxy paths
     mediaType: zod_1.z.enum(['IMAGE', 'VIDEO', 'AUDIO']).optional(),
 }).refine((d) => d.content ?? d.mediaUrl, { message: 'Either content or mediaUrl is required' });
 const CursorQuerySchema = zod_1.z.object({
@@ -19,6 +19,7 @@ const CursorQuerySchema = zod_1.z.object({
 });
 const ReactionSchema = zod_1.z.object({ emoji: zod_1.z.string().min(1).max(10) });
 router.get('/conversations', messages_controller_1.messagesController.getConversations);
+router.get('/unread-count', messages_controller_1.messagesController.getUnreadCount);
 router.post('/conversations', (0, validate_1.validate)({ body: StartConversationSchema }), messages_controller_1.messagesController.getOrCreate);
 router.get('/conversations/:id', (0, validate_1.validate)({ query: CursorQuerySchema }), messages_controller_1.messagesController.getMessages);
 router.post('/conversations/:id', (0, validate_1.validate)({ body: SendMessageSchema }), messages_controller_1.messagesController.sendMessage);

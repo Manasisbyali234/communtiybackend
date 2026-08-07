@@ -4,9 +4,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const supertest_1 = __importDefault(require("supertest"));
-const app_1 = require("../../app");
-const database_1 = require("../../config/database");
-const redis_1 = require("../../config/redis");
+const app_1 = require("../app");
+const database_1 = require("../config/database");
+const redis_1 = require("../config/redis");
 // Mock dependencies
 jest.mock('../../config/database', () => ({
     prisma: {

@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.notificationsService = void 0;
 const database_1 = require("../config/database");
 const pagination_1 = require("../utils/pagination");
+const index_1 = require("../sockets/index");
 exports.notificationsService = {
     async create(payload) {
         // Deduplication: skip if same unread notification already exists
@@ -19,7 +20,7 @@ exports.notificationsService = {
             if (existing)
                 return;
         }
-        await database_1.prisma.notification.create({
+        const notification = await database_1.prisma.notification.create({
             data: {
                 recipientId: payload.recipientId,
                 type: payload.type,
@@ -28,7 +29,16 @@ exports.notificationsService = {
                 entityType: payload.entityType ?? null,
                 body: payload.body,
             },
+            include: {
+                actor: { select: { id: true, displayName: true, avatarUrl: true, username: true } },
+            },
         });
+        try {
+            (0, index_1.getIO)().to(`user:${payload.recipientId}`).emit('notification:new', notification);
+        }
+        catch {
+            // socket server may not be initialized in tests
+        }
     },
     async list(userId, params) {
         const { cursor, limit = 20, unreadOnly = false } = params;
@@ -38,7 +48,19 @@ exports.notificationsService = {
             where: { recipientId: userId, ...(unreadOnly ? { isRead: false } : {}) },
             orderBy: { createdAt: 'desc' },
         });
-        return (0, pagination_1.buildCursorPage)(notifications, limit);
+        const actorIds = [...new Set(notifications.map((n) => n.actorId).filter(Boolean))];
+        const actors = actorIds.length
+            ? await database_1.prisma.user.findMany({
+                where: { id: { in: actorIds } },
+                select: { id: true, displayName: true, avatarUrl: true, username: true },
+            })
+            : [];
+        const actorMap = Object.fromEntries(actors.map((a) => [a.id, a]));
+        const enriched = notifications.map((n) => ({
+            ...n,
+            actor: n.actorId ? (actorMap[n.actorId] ?? null) : null,
+        }));
+        return (0, pagination_1.buildCursorPage)(enriched, limit);
     },
     async unreadCount(userId) {
         return database_1.prisma.notification.count({ where: { recipientId: userId, isRead: false } });

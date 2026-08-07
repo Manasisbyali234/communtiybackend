@@ -60,14 +60,17 @@ function _keyFromUrl(url: string): string | null {
 
 // Build dateOfBirth range from age range
 function _dobRange(minAge?: number, maxAge?: number) {
+  if (minAge == null && maxAge == null) return undefined;
+  if (typeof minAge === 'number' && isNaN(minAge)) return undefined;
+  if (typeof maxAge === 'number' && isNaN(maxAge)) return undefined;
   const today = new Date();
   const range: any = {};
-  if (maxAge !== undefined) {
+  if (maxAge != null) {
     const minDob = new Date(today);
-    minDob.setFullYear(today.getFullYear() - maxAge - 1);
+    minDob.setFullYear(today.getFullYear() - maxAge);
     range.gte = minDob;
   }
-  if (minAge !== undefined) {
+  if (minAge != null) {
     const maxDob = new Date(today);
     maxDob.setFullYear(today.getFullYear() - minAge);
     range.lte = maxDob;
@@ -95,6 +98,11 @@ export const createProfile = asyncHandler(async (req: Request, res: Response) =>
     throw new ApiError(400, 'displayName, gender, dateOfBirth and city are required');
   }
 
+  const parsedDob = new Date(dateOfBirth);
+  if (isNaN(parsedDob.getTime())) {
+    throw new ApiError(400, 'Invalid dateOfBirth format. Use YYYY-MM-DD');
+  }
+
   const photoList: string[] = Array.isArray(photos) ? photos : [];
   if (photoList.length < MIN_PHOTOS) throw new ApiError(400, `At least ${MIN_PHOTOS} photos are required`);
   if (photoList.length > MAX_PHOTOS) throw new ApiError(400, `Maximum ${MAX_PHOTOS} photos allowed`);
@@ -102,7 +110,7 @@ export const createProfile = asyncHandler(async (req: Request, res: Response) =>
   const profile = await prisma.matrimonyProfile.create({
     data: {
       userId, displayName, gender,
-      dateOfBirth: new Date(dateOfBirth),
+      dateOfBirth: parsedDob,
       height: height ?? '',
       maritalStatus: maritalStatus ?? 'NEVER_MARRIED',
       religion: religion ?? '',
@@ -123,20 +131,22 @@ export const createProfile = asyncHandler(async (req: Request, res: Response) =>
   });
 
   // Notify all admins about new profile pending approval
-  const admins = await prisma.user.findMany({
-    where: { role: Role.ADMIN, isActive: true, deletedAt: null },
-    select: { id: true },
-  });
-  await Promise.all(admins.map(admin =>
-    notificationsService.create({
-      recipientId: admin.id,
-      type: 'MATRIMONY_INTEREST_RECEIVED', // reuse as admin alert — or add dedicated type
-      actorId: userId,
-      entityId: profile.id,
-      entityType: 'MatrimonyProfile',
-      body: `New matrimony profile submitted by ${displayName} — pending approval`,
-    })
-  ));
+  try {
+    const admins = await prisma.user.findMany({
+      where: { role: Role.ADMIN, isActive: true, deletedAt: null },
+      select: { id: true },
+    });
+    await Promise.all(admins.map(admin =>
+      notificationsService.create({
+        recipientId: admin.id,
+        type: 'MATRIMONY_INTEREST_RECEIVED',
+        actorId: userId,
+        entityId: profile.id,
+        entityType: 'MatrimonyProfile',
+        body: `New matrimony profile submitted by ${displayName} — pending approval`,
+      }).catch(() => {})
+    ));
+  } catch { /* notification errors must not fail profile creation */ }
 
   res.status(201).json(new ApiResponse(201, _withAge(profile), 'Profile submitted for approval'));
 });
@@ -179,7 +189,7 @@ export const updateProfile = asyncHandler(async (req: Request, res: Response) =>
       // Re-submit for approval when profile is updated
       approvalStatus: MatrimonyApprovalStatus.PENDING,
       rejectionReason: null,
-      dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined,
+      dateOfBirth: data.dateOfBirth ? (() => { const d = new Date(data.dateOfBirth); if (isNaN(d.getTime())) throw new ApiError(400, 'Invalid dateOfBirth format. Use YYYY-MM-DD'); return d; })() : undefined,
       siblings: data.siblings != null ? Number(data.siblings) : undefined,
       partnerMinAge: data.partnerMinAge != null ? Number(data.partnerMinAge) : undefined,
       partnerMaxAge: data.partnerMaxAge != null ? Number(data.partnerMaxAge) : undefined,
@@ -220,12 +230,14 @@ export const listProfiles = asyncHandler(async (req: Request, res: Response) => 
       : undefined;
   }
 
-  // ── Age: use ±2 smart default based on user's own age if not specified ─────
+  // ── Age: only filter when the client explicitly passes minAge or maxAge ─────
+  // Never apply a smart default — that silently hides profiles when "Any Age" is selected.
   if (minAge || maxAge) {
-    where.dateOfBirth = _dobRange(Number(minAge), Number(maxAge));
-  } else if (myProfile) {
-    const myAge = calcAge(new Date(myProfile.dateOfBirth));
-    where.dateOfBirth = _dobRange(myAge - AGE_BUFFER, myAge + AGE_BUFFER);
+    const range = _dobRange(
+      minAge ? Number(minAge) : undefined,
+      maxAge ? Number(maxAge) : undefined,
+    );
+    if (range) where.dateOfBirth = range;
   }
 
   if (religion) where.religion = { contains: religion, mode: 'insensitive' };
@@ -319,7 +331,8 @@ export const getMatches = asyncHandler(async (req: Request, res: Response) => {
   // Use partner preference age range, fallback to ±2 of own age
   const minAge = myProfile.partnerMinAge ?? myAge - AGE_BUFFER;
   const maxAge = myProfile.partnerMaxAge ?? myAge + AGE_BUFFER;
-  where.dateOfBirth = _dobRange(minAge, maxAge);
+  const dobRange = _dobRange(minAge, maxAge);
+  if (dobRange) where.dateOfBirth = dobRange;
 
   const profiles = await prisma.matrimonyProfile.findMany({
     where,
@@ -384,36 +397,15 @@ export const expressInterest = asyncHandler(async (req: Request, res: Response) 
   res.status(201).json(new ApiResponse(201, interest, 'Interest sent'));
 });
 
-// ── Get Interests ─────────────────────────────────────────────────────────────
-export const getInterests = asyncHandler(async (req: Request, res: Response) => {
-  const userId = (req as any).user?.id;
-  if (!userId) throw new ApiError(401, 'Unauthorized');
+// ── Shared include for interest profile fields ───────────────────────────────
+const _interestProfileSelect = {
+  id: true, userId: true, displayName: true, dateOfBirth: true,
+  city: true, occupation: true, photos: true,
+  user: { select: { avatarUrl: true } },
+} as const;
 
-  const myProfile = await prisma.matrimonyProfile.findUnique({ where: { userId }, select: { id: true } });
-  if (!myProfile) return res.json(new ApiResponse(200, []));
-
-  const interests = await prisma.matrimonyInterest.findMany({
-    where: { OR: [{ fromProfileId: myProfile.id }, { toProfileId: myProfile.id }] },
-    orderBy: { createdAt: 'desc' },
-    include: {
-      fromProfile: {
-        select: {
-          id: true, displayName: true, dateOfBirth: true,
-          city: true, occupation: true, photos: true,
-          user: { select: { avatarUrl: true } },
-        },
-      },
-      toProfile: {
-        select: {
-          id: true, displayName: true, dateOfBirth: true,
-          city: true, occupation: true, photos: true,
-          user: { select: { avatarUrl: true } },
-        },
-      },
-    },
-  });
-
-  const result = interests.map(i => ({
+function _mapInterest(i: any) {
+  return {
     ...i,
     fromProfile: i.fromProfile
       ? { ...i.fromProfile, age: calcAge(new Date(i.fromProfile.dateOfBirth)), avatarUrl: i.fromProfile.user?.avatarUrl ?? null }
@@ -421,49 +413,158 @@ export const getInterests = asyncHandler(async (req: Request, res: Response) => 
     toProfile: i.toProfile
       ? { ...i.toProfile, age: calcAge(new Date(i.toProfile.dateOfBirth)), avatarUrl: i.toProfile.user?.avatarUrl ?? null }
       : null,
-  }));
+  };
+}
 
+// ── Get Sent Interests ────────────────────────────────────────────────────────
+export const getSentInterests = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.id;
+  if (!userId) throw new ApiError(401, 'Unauthorized');
+
+  const myProfile = await prisma.matrimonyProfile.findUnique({ where: { userId }, select: { id: true } });
+  if (!myProfile) return res.json(new ApiResponse(200, []));
+
+  const interests = await prisma.matrimonyInterest.findMany({
+    where: { fromProfileId: myProfile.id },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      fromProfile: { select: _interestProfileSelect },
+      toProfile: { select: _interestProfileSelect },
+    },
+  });
+
+  res.json(new ApiResponse(200, interests.map(_mapInterest)));
+});
+
+// ── Get Received Interests ────────────────────────────────────────────────────
+export const getReceivedInterests = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.id;
+  if (!userId) throw new ApiError(401, 'Unauthorized');
+
+  const myProfile = await prisma.matrimonyProfile.findUnique({ where: { userId }, select: { id: true } });
+  if (!myProfile) return res.json(new ApiResponse(200, []));
+
+  const interests = await prisma.matrimonyInterest.findMany({
+    where: { toProfileId: myProfile.id },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      fromProfile: { select: _interestProfileSelect },
+      toProfile: { select: _interestProfileSelect },
+    },
+  });
+
+  res.json(new ApiResponse(200, interests.map(_mapInterest)));
+});
+
+// ── Get Interests (legacy combined — kept for backward compat) ────────────────
+export const getInterests = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.id;
+  if (!userId) throw new ApiError(401, 'Unauthorized');
+
+  const myProfile = await prisma.matrimonyProfile.findUnique({ where: { userId }, select: { id: true } });
+  if (!myProfile) return res.json(new ApiResponse(200, { sent: [], received: [] }));
+
+  const [sent, received] = await Promise.all([
+    prisma.matrimonyInterest.findMany({
+      where: { fromProfileId: myProfile.id },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        fromProfile: { select: _interestProfileSelect },
+        toProfile: { select: _interestProfileSelect },
+      },
+    }),
+    prisma.matrimonyInterest.findMany({
+      where: { toProfileId: myProfile.id },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        fromProfile: { select: _interestProfileSelect },
+        toProfile: { select: _interestProfileSelect },
+      },
+    }),
+  ]);
+
+  const result = {
+    sent: sent.map(_mapInterest),
+    received: received.map(_mapInterest),
+  };
+  console.log('[getInterests] userId:', userId, '| myProfileId:', myProfile.id,
+    '| sent count:', result.sent.length, '| received count:', result.received.length);
+  if (result.received.length > 0) {
+    console.log('[getInterests] First received interest id:', result.received[0].id,
+      '| status:', result.received[0].status,
+      '| toProfileId:', result.received[0].toProfileId);
+  }
   res.json(new ApiResponse(200, result));
 });
 
 // ── Respond to Interest ───────────────────────────────────────────────────────
 export const respondInterest = asyncHandler(async (req: Request, res: Response) => {
   const userId = (req as any).user?.id;
+  console.log('[respondInterest] Logged-in User ID:', userId);
   if (!userId) throw new ApiError(401, 'Unauthorized');
 
   const myProfile = await prisma.matrimonyProfile.findUnique({
     where: { userId },
     select: { id: true, displayName: true },
   });
-  if (!myProfile) throw new ApiError(404, 'Profile not found');
+  console.log('[respondInterest] My profile ID:', myProfile?.id);
+  if (!myProfile) throw new ApiError(404, 'You do not have a matrimony profile');
 
   const { interestId } = req.params;
   const { status } = req.body;
+  console.log('[respondInterest] Interest ID:', interestId, '| Requested status:', status);
 
-  if (!['ACCEPTED', 'REJECTED'].includes(status)) throw new ApiError(400, 'status must be ACCEPTED or REJECTED');
+  const normalizedStatus = typeof status === 'string' ? status.toUpperCase() : status;
+  if (!['ACCEPTED', 'REJECTED'].includes(normalizedStatus)) {
+    throw new ApiError(400, 'status must be ACCEPTED or REJECTED');
+  }
 
   const interest = await prisma.matrimonyInterest.findUnique({
     where: { id: interestId },
-    include: { fromProfile: { select: { userId: true, displayName: true } } },
+    include: {
+      fromProfile: { select: { ...(_interestProfileSelect) } },
+      toProfile: { select: { ...(_interestProfileSelect) } },
+    },
   });
+  console.log('[respondInterest] Found interest:', interest?.id, '| toProfileId:', interest?.toProfileId, '| current status:', interest?.status);
+
   if (!interest) throw new ApiError(404, 'Interest not found');
-  if (interest.toProfileId !== myProfile.id) throw new ApiError(403, 'Forbidden');
-  if (interest.status !== 'PENDING') throw new ApiError(400, 'Interest already responded to');
+  if (interest.toProfileId !== myProfile.id) {
+    console.error('[respondInterest] FORBIDDEN — toProfileId:', interest.toProfileId, '!== myProfile.id:', myProfile.id);
+    throw new ApiError(403, 'You are not the receiver of this interest');
+  }
 
-  const updated = await prisma.matrimonyInterest.update({ where: { id: interestId }, data: { status } });
+  // Idempotent: already at requested status
+  if (interest.status === normalizedStatus) {
+    return res.json(new ApiResponse(200, _mapInterest(interest), `Interest already ${normalizedStatus.toLowerCase()}`));
+  }
+  // Only allow responding to PENDING interests
+  if (interest.status !== 'PENDING') {
+    throw new ApiError(400, `Interest is already ${interest.status.toLowerCase()}. Cannot change again.`);
+  }
 
-  if (status === 'ACCEPTED' && interest.fromProfile?.userId) {
-    await notificationsService.create({
+  const updated = await prisma.matrimonyInterest.update({
+    where: { id: interestId },
+    data: { status: normalizedStatus as any },
+    include: {
+      fromProfile: { select: { ...(_interestProfileSelect) } },
+      toProfile: { select: { ...(_interestProfileSelect) } },
+    },
+  });
+  console.log('[respondInterest] DB updated. New status:', updated.status);
+
+  if (normalizedStatus === 'ACCEPTED' && interest.fromProfile?.userId) {
+    notificationsService.create({
       recipientId: interest.fromProfile.userId,
       type: 'MATRIMONY_INTEREST_ACCEPTED',
       actorId: userId,
       entityId: interest.id,
       entityType: 'MatrimonyInterest',
       body: `${myProfile.displayName} accepted your matrimony interest 💍`,
-    });
+    }).catch(() => {});
   }
 
-  res.json(new ApiResponse(200, updated, `Interest ${status.toLowerCase()}`));
+  res.json(new ApiResponse(200, _mapInterest(updated), `Interest ${normalizedStatus.toLowerCase()}`));
 });
 
 // ── Upload Profile Photo ──────────────────────────────────────────────────────

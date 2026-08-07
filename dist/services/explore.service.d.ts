@@ -4,27 +4,27 @@ export declare const exploreService: {
             name: string;
             id: string;
             slug: string;
-        } | null;
+        };
         id: string;
         createdAt: Date;
         content: string;
+        mediaType: import(".prisma/client").$Enums.MediaType;
         mediaUrls: string[];
-        mediaType: import(".prisma/client").$Enums.MediaType | null;
         likesCount: number;
         commentsCount: number;
         author: {
             id: string;
             username: string;
             displayName: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
         };
     }[]>;
     getTrendingCommunities(limit?: number): Promise<{
         name: string;
         id: string;
-        avatarUrl: string | null;
+        avatarUrl: string;
+        description: string;
         slug: string;
-        description: string | null;
         category: string;
         memberCount: number;
     }[]>;
@@ -32,15 +32,20 @@ export declare const exploreService: {
         id: string;
         username: string;
         displayName: string;
-        avatarUrl: string | null;
+        bio: string;
+        avatarUrl: string;
+        role: import(".prisma/client").$Enums.Role;
         isVerified: boolean;
+        _count: {
+            followers: number;
+        };
     }[]>;
     getSuggestedCommunities(userId: string, limit?: number): Promise<{
         name: string;
         id: string;
-        avatarUrl: string | null;
+        avatarUrl: string;
+        description: string;
         slug: string;
-        description: string | null;
         category: string;
         memberCount: number;
     }[]>;
@@ -50,8 +55,35 @@ export declare const exploreService: {
         postsCount: number;
     }[]>;
     getPostsByHashtag(hashtagName: string, userId: string, cursor?: string, limit?: number): Promise<{
-        items: any[];
-        nextCursor: string | null | undefined;
+        items: ({
+            author: {
+                id: string;
+                username: string;
+                displayName: string;
+                avatarUrl: string;
+            };
+        } & {
+            status: import(".prisma/client").$Enums.PostStatus;
+            id: string;
+            createdAt: Date;
+            deletedAt: Date | null;
+            updatedAt: Date;
+            content: string;
+            mediaType: import(".prisma/client").$Enums.MediaType | null;
+            authorId: string;
+            communityId: string | null;
+            mediaUrls: string[];
+            videoUrl: string | null;
+            videoFileName: string | null;
+            mimeType: string | null;
+            fileSize: number | null;
+            likesCount: number;
+            commentsCount: number;
+            sharesCount: number;
+            isDraft: boolean;
+            scheduledAt: Date | null;
+        })[];
+        nextCursor: string;
         hasMore: boolean;
     }>;
 };

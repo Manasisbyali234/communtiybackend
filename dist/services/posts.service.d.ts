@@ -1,27 +1,76 @@
+export declare const POST_SELECT: {
+    id: boolean;
+    content: boolean;
+    mediaUrls: boolean;
+    mediaType: boolean;
+    videoUrl: boolean;
+    videoFileName: boolean;
+    mimeType: boolean;
+    fileSize: boolean;
+    likesCount: boolean;
+    commentsCount: boolean;
+    sharesCount: boolean;
+    isDraft: boolean;
+    scheduledAt: boolean;
+    status: boolean;
+    createdAt: boolean;
+    updatedAt: boolean;
+    author: {
+        select: {
+            id: boolean;
+            username: boolean;
+            displayName: boolean;
+            avatarUrl: boolean;
+        };
+    };
+    community: {
+        select: {
+            id: boolean;
+            name: boolean;
+            slug: boolean;
+            avatarUrl: boolean;
+        };
+    };
+    hashtags: {
+        select: {
+            hashtag: {
+                select: {
+                    id: boolean;
+                    name: boolean;
+                };
+            };
+        };
+    };
+};
 export declare const postsService: {
     getFeed(userId: string, cursor?: string, limit?: number): Promise<import("../utils/pagination").CursorPage<{
+        status: import(".prisma/client").$Enums.PostStatus;
         community: {
             name: string;
             id: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
             slug: string;
-        } | null;
+        };
         id: string;
         createdAt: Date;
         updatedAt: Date;
         content: string;
+        mediaType: import(".prisma/client").$Enums.MediaType;
         mediaUrls: string[];
-        mediaType: import(".prisma/client").$Enums.MediaType | null;
+        videoUrl: string;
+        videoFileName: string;
+        mimeType: string;
+        fileSize: number;
         likesCount: number;
         commentsCount: number;
         sharesCount: number;
         isDraft: boolean;
-        scheduledAt: Date | null;
+        scheduledAt: Date;
         author: {
             id: string;
             username: string;
             displayName: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
         };
         hashtags: {
             hashtag: {
@@ -33,32 +82,43 @@ export declare const postsService: {
     createPost(authorId: string, data: {
         content: string;
         mediaUrls?: string[];
+        mediaType?: string;
+        videoUrl?: string;
+        videoFileName?: string;
+        mimeType?: string;
+        fileSize?: number;
         communityId?: string;
         isDraft?: boolean;
         scheduledAt?: Date | null;
+        tags?: string[];
     }): Promise<{
+        status: import(".prisma/client").$Enums.PostStatus;
         community: {
             name: string;
             id: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
             slug: string;
-        } | null;
+        };
         id: string;
         createdAt: Date;
         updatedAt: Date;
         content: string;
+        mediaType: import(".prisma/client").$Enums.MediaType;
         mediaUrls: string[];
-        mediaType: import(".prisma/client").$Enums.MediaType | null;
+        videoUrl: string;
+        videoFileName: string;
+        mimeType: string;
+        fileSize: number;
         likesCount: number;
         commentsCount: number;
         sharesCount: number;
         isDraft: boolean;
-        scheduledAt: Date | null;
+        scheduledAt: Date;
         author: {
             id: string;
             username: string;
             displayName: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
         };
         hashtags: {
             hashtag: {
@@ -68,42 +128,39 @@ export declare const postsService: {
         }[];
     }>;
     getPost(postId: string, viewerId?: string): Promise<{
+        status: import(".prisma/client").$Enums.PostStatus;
         community: {
             name: string;
             id: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
             slug: string;
-        } | null;
+        };
         id: string;
         createdAt: Date;
         updatedAt: Date;
         likes: {
             id: string;
-            createdAt: Date;
-            userId: string;
-            postId: string | null;
-            commentId: string | null;
-            storyId: string | null;
         }[];
         bookmarks: {
             id: string;
-            createdAt: Date;
-            userId: string;
-            postId: string;
         }[];
         content: string;
+        mediaType: import(".prisma/client").$Enums.MediaType;
         mediaUrls: string[];
-        mediaType: import(".prisma/client").$Enums.MediaType | null;
+        videoUrl: string;
+        videoFileName: string;
+        mimeType: string;
+        fileSize: number;
         likesCount: number;
         commentsCount: number;
         sharesCount: number;
         isDraft: boolean;
-        scheduledAt: Date | null;
+        scheduledAt: Date;
         author: {
             id: string;
             username: string;
             displayName: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
         };
         hashtags: {
             hashtag: {
@@ -116,28 +173,33 @@ export declare const postsService: {
         content?: string;
         isDraft?: boolean;
     }): Promise<{
+        status: import(".prisma/client").$Enums.PostStatus;
         community: {
             name: string;
             id: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
             slug: string;
-        } | null;
+        };
         id: string;
         createdAt: Date;
         updatedAt: Date;
         content: string;
+        mediaType: import(".prisma/client").$Enums.MediaType;
         mediaUrls: string[];
-        mediaType: import(".prisma/client").$Enums.MediaType | null;
+        videoUrl: string;
+        videoFileName: string;
+        mimeType: string;
+        fileSize: number;
         likesCount: number;
         commentsCount: number;
         sharesCount: number;
         isDraft: boolean;
-        scheduledAt: Date | null;
+        scheduledAt: Date;
         author: {
             id: string;
             username: string;
             displayName: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
         };
         hashtags: {
             hashtag: {
@@ -148,28 +210,33 @@ export declare const postsService: {
     }>;
     deletePost(postId: string, userId: string, role: string): Promise<void>;
     publishDraft(postId: string, userId: string): Promise<{
+        status: import(".prisma/client").$Enums.PostStatus;
         community: {
             name: string;
             id: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
             slug: string;
-        } | null;
+        };
         id: string;
         createdAt: Date;
         updatedAt: Date;
         content: string;
+        mediaType: import(".prisma/client").$Enums.MediaType;
         mediaUrls: string[];
-        mediaType: import(".prisma/client").$Enums.MediaType | null;
+        videoUrl: string;
+        videoFileName: string;
+        mimeType: string;
+        fileSize: number;
         likesCount: number;
         commentsCount: number;
         sharesCount: number;
         isDraft: boolean;
-        scheduledAt: Date | null;
+        scheduledAt: Date;
         author: {
             id: string;
             username: string;
             displayName: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
         };
         hashtags: {
             hashtag: {
@@ -179,28 +246,33 @@ export declare const postsService: {
         }[];
     }>;
     getDrafts(userId: string, cursor?: string, limit?: number): Promise<import("../utils/pagination").CursorPage<{
+        status: import(".prisma/client").$Enums.PostStatus;
         community: {
             name: string;
             id: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
             slug: string;
-        } | null;
+        };
         id: string;
         createdAt: Date;
         updatedAt: Date;
         content: string;
+        mediaType: import(".prisma/client").$Enums.MediaType;
         mediaUrls: string[];
-        mediaType: import(".prisma/client").$Enums.MediaType | null;
+        videoUrl: string;
+        videoFileName: string;
+        mimeType: string;
+        fileSize: number;
         likesCount: number;
         commentsCount: number;
         sharesCount: number;
         isDraft: boolean;
-        scheduledAt: Date | null;
+        scheduledAt: Date;
         author: {
             id: string;
             username: string;
             displayName: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
         };
         hashtags: {
             hashtag: {
@@ -212,28 +284,33 @@ export declare const postsService: {
     likePost(postId: string, userId: string): Promise<void>;
     unlikePost(postId: string, userId: string): Promise<void>;
     getTrendingPosts(userId: string, cursor?: string, limit?: number): Promise<import("../utils/pagination").CursorPage<{
+        status: import(".prisma/client").$Enums.PostStatus;
         community: {
             name: string;
             id: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
             slug: string;
-        } | null;
+        };
         id: string;
         createdAt: Date;
         updatedAt: Date;
         content: string;
+        mediaType: import(".prisma/client").$Enums.MediaType;
         mediaUrls: string[];
-        mediaType: import(".prisma/client").$Enums.MediaType | null;
+        videoUrl: string;
+        videoFileName: string;
+        mimeType: string;
+        fileSize: number;
         likesCount: number;
         commentsCount: number;
         sharesCount: number;
         isDraft: boolean;
-        scheduledAt: Date | null;
+        scheduledAt: Date;
         author: {
             id: string;
             username: string;
             displayName: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
         };
         hashtags: {
             hashtag: {

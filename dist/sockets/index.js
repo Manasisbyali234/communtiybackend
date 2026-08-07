@@ -3,7 +3,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.initSocketServer = initSocketServer;
 exports.getIO = getIO;
 const socket_io_1 = require("socket.io");
-const index_1 = require("../config/index");
 const logger_1 = require("../config/logger");
 const auth_socket_1 = require("./auth.socket");
 const chat_socket_1 = require("./chat.socket");
@@ -12,11 +11,17 @@ let io;
 function initSocketServer(httpServer) {
     io = new socket_io_1.Server(httpServer, {
         cors: {
-            origin: index_1.config.CORS_ORIGINS.split(',').map((o) => o.trim()),
+            origin: (origin, callback) => {
+                // credentials:true is incompatible with a wildcard origin.
+                // Accept every origin explicitly so cookies/auth headers are allowed.
+                callback(null, origin ?? '*');
+            },
             methods: ['GET', 'POST'],
             credentials: true,
+            allowedHeaders: ['Authorization', 'Content-Type'],
         },
-        transports: ['websocket', 'polling'],
+        transports: ['polling', 'websocket'],
+        allowEIO3: true,
     });
     // Auth middleware on every connection
     io.use(auth_socket_1.socketAuthMiddleware);

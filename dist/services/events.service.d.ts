@@ -6,26 +6,10 @@ export declare const eventsService: {
         communityId?: string;
         upcoming?: boolean;
         search?: string;
-    }): Promise<import("../utils/pagination").CursorPage<{
-        community: {
-            name: string;
-            id: string;
-            slug: string;
-        } | null;
-    } & {
-        id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        communityId: string | null;
-        description: string | null;
-        title: string;
-        creatorId: string;
-        location: string | null;
-        startsAt: Date;
-        endsAt: Date | null;
-        coverUrl: string | null;
-        rsvpCount: number;
-    }>>;
+        userId?: string;
+        creatorId?: string;
+        includeUnapproved?: boolean;
+    }): Promise<import("../utils/pagination").CursorPage<any>>;
     create(creatorId: string, data: {
         title: string;
         description?: string;
@@ -38,43 +22,55 @@ export declare const eventsService: {
         community: {
             name: string;
             id: string;
-        } | null;
+        };
     } & {
+        status: import(".prisma/client").$Enums.EventStatus;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        communityId: string | null;
         description: string | null;
+        communityId: string | null;
+        likesCount: number;
+        commentsCount: number;
+        sharesCount: number;
+        location: string | null;
         title: string;
         creatorId: string;
-        location: string | null;
         startsAt: Date;
         endsAt: Date | null;
         coverUrl: string | null;
         rsvpCount: number;
+        interestedCount: number;
     }>;
     getById(eventId: string, userId: string): Promise<{
-        myRsvp: import(".prisma/client").$Enums.RsvpStatus | null;
+        coverUrl: string;
+        myRsvp: import(".prisma/client").$Enums.RsvpStatus;
+        isInterested: boolean;
+        interests: any;
         community: {
             name: string;
             id: string;
             slug: string;
-        } | null;
+        };
         rsvps: {
             status: import(".prisma/client").$Enums.RsvpStatus;
         }[];
+        status: import(".prisma/client").$Enums.EventStatus;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        communityId: string | null;
         description: string | null;
+        communityId: string | null;
+        likesCount: number;
+        commentsCount: number;
+        sharesCount: number;
+        location: string | null;
         title: string;
         creatorId: string;
-        location: string | null;
         startsAt: Date;
         endsAt: Date | null;
-        coverUrl: string | null;
         rsvpCount: number;
+        interestedCount: number;
     }>;
     update(eventId: string, creatorId: string, data: Partial<{
         title: string;
@@ -84,18 +80,23 @@ export declare const eventsService: {
         endsAt: Date;
         coverUrl: string;
     }>): Promise<{
+        status: import(".prisma/client").$Enums.EventStatus;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        communityId: string | null;
         description: string | null;
+        communityId: string | null;
+        likesCount: number;
+        commentsCount: number;
+        sharesCount: number;
+        location: string | null;
         title: string;
         creatorId: string;
-        location: string | null;
         startsAt: Date;
         endsAt: Date | null;
         coverUrl: string | null;
         rsvpCount: number;
+        interestedCount: number;
     }>;
     delete(eventId: string, creatorId: string): Promise<void>;
     rsvp(eventId: string, userId: string, status: RsvpStatus): Promise<{
@@ -111,7 +112,64 @@ export declare const eventsService: {
         id: string;
         username: string;
         displayName: string;
-        avatarUrl: string | null;
+        avatarUrl: string;
     }>>;
+    toggleLike(eventId: string, userId: string): Promise<{
+        liked: boolean;
+        likesCount: number;
+    }>;
+    getComments(eventId: string, cursor?: string, limit?: number): Promise<import("../utils/pagination").CursorPage<{
+        author: {
+            id: string;
+            username: string;
+            displayName: string;
+            avatarUrl: string;
+        };
+    } & {
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        content: string;
+        authorId: string;
+        eventId: string;
+    }>>;
+    addComment(eventId: string, authorId: string, content: string): Promise<{
+        author: {
+            id: string;
+            username: string;
+            displayName: string;
+            avatarUrl: string;
+        };
+    } & {
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        content: string;
+        authorId: string;
+        eventId: string;
+    }>;
+    updateComment(commentId: string, userId: string, content: string): Promise<{
+        author: {
+            id: string;
+            username: string;
+            displayName: string;
+            avatarUrl: string;
+        };
+    } & {
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        content: string;
+        authorId: string;
+        eventId: string;
+    }>;
+    deleteComment(commentId: string, eventId: string, userId: string, role: string): Promise<void>;
+    shareEvent(eventId: string, userId: string): Promise<{
+        sharesCount: number;
+    }>;
+    toggleInterest(eventId: string, userId: string): Promise<{
+        interested: boolean;
+        interestedCount: number;
+    }>;
 };
 //# sourceMappingURL=events.service.d.ts.map

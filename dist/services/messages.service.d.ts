@@ -1,60 +1,60 @@
 import { MediaType } from '@prisma/client';
 export declare const messagesService: {
     getConversations(userId: string): Promise<{
-        lastReadAt: Date | null;
-        otherParticipants: {
-            id: string;
-            username: string;
-            displayName: string;
-            avatarUrl: string | null;
-        }[];
-        lastMessage: {
-            id: string;
-            createdAt: Date;
-            content: string | null;
-            mediaType: import(".prisma/client").$Enums.MediaType | null;
-            senderId: string;
-            mediaUrl: string | null;
-            conversationId: string;
-            deletedForAll: boolean;
-            isDeleted: boolean;
-            readAt: Date | null;
-            deliveredAt: Date | null;
-        } | null;
-        participants: ({
+        participants: {
             user: {
                 id: string;
                 username: string;
                 displayName: string;
-                avatarUrl: string | null;
+                avatarUrl: string;
             };
-        } & {
             id: string;
             userId: string;
             conversationId: string;
             lastReadAt: Date | null;
             isAdmin: boolean;
             leftAt: Date | null;
-        })[];
+        }[];
+        lastReadAt: Date;
+        unreadCount: number;
+        otherParticipants: {
+            id: string;
+            username: string;
+            displayName: string;
+            avatarUrl: string;
+        }[];
+        lastMessage: {
+            id: string;
+            createdAt: Date;
+            conversationId: string;
+            senderId: string;
+            content: string | null;
+            mediaUrl: string | null;
+            mediaType: import(".prisma/client").$Enums.MediaType | null;
+            isDeleted: boolean;
+            deletedForAll: boolean;
+            readAt: Date | null;
+            deliveredAt: Date | null;
+        };
         messages: {
             id: string;
             createdAt: Date;
-            content: string | null;
-            mediaType: import(".prisma/client").$Enums.MediaType | null;
-            senderId: string;
-            mediaUrl: string | null;
             conversationId: string;
-            deletedForAll: boolean;
+            senderId: string;
+            content: string | null;
+            mediaUrl: string | null;
+            mediaType: import(".prisma/client").$Enums.MediaType | null;
             isDeleted: boolean;
+            deletedForAll: boolean;
             readAt: Date | null;
             deliveredAt: Date | null;
         }[];
         id: string;
         createdAt: Date;
-        lastMessageAt: Date | null;
         isGroup: boolean;
         groupName: string | null;
         groupAvatarUrl: string | null;
+        lastMessageAt: Date | null;
     }[]>;
     getOrCreateConversation(userId: string, participantId: string): Promise<{
         participants: ({
@@ -62,7 +62,7 @@ export declare const messagesService: {
                 id: string;
                 username: string;
                 displayName: string;
-                avatarUrl: string | null;
+                avatarUrl: string;
             };
         } & {
             id: string;
@@ -75,17 +75,17 @@ export declare const messagesService: {
     } & {
         id: string;
         createdAt: Date;
-        lastMessageAt: Date | null;
         isGroup: boolean;
         groupName: string | null;
         groupAvatarUrl: string | null;
+        lastMessageAt: Date | null;
     }>;
     getMessages(conversationId: string, userId: string, cursor?: string, limit?: number): Promise<import("../utils/pagination").CursorPage<{
         sender: {
             id: string;
             username: string;
             displayName: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
         };
         reactions: {
             id: string;
@@ -97,13 +97,13 @@ export declare const messagesService: {
     } & {
         id: string;
         createdAt: Date;
-        content: string | null;
-        mediaType: import(".prisma/client").$Enums.MediaType | null;
-        senderId: string;
-        mediaUrl: string | null;
         conversationId: string;
-        deletedForAll: boolean;
+        senderId: string;
+        content: string | null;
+        mediaUrl: string | null;
+        mediaType: import(".prisma/client").$Enums.MediaType | null;
         isDeleted: boolean;
+        deletedForAll: boolean;
         readAt: Date | null;
         deliveredAt: Date | null;
     }>>;
@@ -116,7 +116,7 @@ export declare const messagesService: {
             id: string;
             username: string;
             displayName: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
         };
         reactions: {
             id: string;
@@ -128,16 +128,17 @@ export declare const messagesService: {
     } & {
         id: string;
         createdAt: Date;
-        content: string | null;
-        mediaType: import(".prisma/client").$Enums.MediaType | null;
-        senderId: string;
-        mediaUrl: string | null;
         conversationId: string;
-        deletedForAll: boolean;
+        senderId: string;
+        content: string | null;
+        mediaUrl: string | null;
+        mediaType: import(".prisma/client").$Enums.MediaType | null;
         isDeleted: boolean;
+        deletedForAll: boolean;
         readAt: Date | null;
         deliveredAt: Date | null;
     }>;
+    getUnreadCount(userId: string): Promise<number>;
     markRead(conversationId: string, userId: string): Promise<void>;
     addReaction(messageId: string, userId: string, emoji: string): Promise<{
         id: string;
@@ -156,13 +157,13 @@ export declare const messagesService: {
     deleteForEveryone(messageId: string, senderId: string): Promise<{
         id: string;
         createdAt: Date;
-        content: string | null;
-        mediaType: import(".prisma/client").$Enums.MediaType | null;
-        senderId: string;
-        mediaUrl: string | null;
         conversationId: string;
-        deletedForAll: boolean;
+        senderId: string;
+        content: string | null;
+        mediaUrl: string | null;
+        mediaType: import(".prisma/client").$Enums.MediaType | null;
         isDeleted: boolean;
+        deletedForAll: boolean;
         readAt: Date | null;
         deliveredAt: Date | null;
     }>;

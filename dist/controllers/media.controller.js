@@ -1,35 +1,79 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.mediaController = exports.uploadMultipleMiddleware = exports.uploadMiddleware = void 0;
 const ApiResponse_1 = require("../utils/ApiResponse");
 const ApiError_1 = require("../utils/ApiError");
 const asyncHandler_1 = require("../utils/asyncHandler");
 const media_service_1 = require("../services/media.service");
-const multer_1 = __importDefault(require("multer"));
-// Configure multer for file uploads
-const storage = multer_1.default.memoryStorage();
-const upload = (0, multer_1.default)({
-    storage,
-    limits: {
-        fileSize: 50 * 1024 * 1024, // 50MB limit
-    },
-});
-exports.uploadMiddleware = upload.single('file');
-exports.uploadMultipleMiddleware = upload.array('files', 10);
+const upload_1 = require("../middleware/upload");
+const client_s3_1 = require("@aws-sdk/client-s3");
+const storage_1 = require("../config/storage");
+exports.uploadMiddleware = upload_1.upload.single('file');
+exports.uploadMultipleMiddleware = upload_1.upload.array('files', 10);
 exports.mediaController = {
+    uploadEventImage: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        if (!req.file)
+            throw ApiError_1.ApiError.badRequest('No file provided');
+        const result = await media_service_1.mediaService.uploadEventImage({ buffer: req.file.buffer, originalname: req.file.originalname, mimetype: req.file.mimetype, size: req.file.size }, req.user.id);
+        res.json(new ApiResponse_1.ApiResponse(200, result, 'Event image uploaded successfully'));
+    }),
+    uploadProfilePhoto: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        if (!req.file)
+            throw ApiError_1.ApiError.badRequest('No file provided');
+        const result = await media_service_1.mediaService.uploadProfilePhoto({ buffer: req.file.buffer, originalname: req.file.originalname, mimetype: req.file.mimetype, size: req.file.size }, req.user.id);
+        res.json(new ApiResponse_1.ApiResponse(200, result, 'Profile photo uploaded successfully'));
+    }),
+    uploadCoverPhoto: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        if (!req.file)
+            throw ApiError_1.ApiError.badRequest('No file provided');
+        const result = await media_service_1.mediaService.uploadCoverPhoto({ buffer: req.file.buffer, originalname: req.file.originalname, mimetype: req.file.mimetype, size: req.file.size }, req.user.id);
+        res.json(new ApiResponse_1.ApiResponse(200, result, 'Cover photo uploaded successfully'));
+    }),
+    uploadPostImage: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        if (!req.file)
+            throw ApiError_1.ApiError.badRequest('No file provided');
+        const result = await media_service_1.mediaService.uploadPostImage({ buffer: req.file.buffer, originalname: req.file.originalname, mimetype: req.file.mimetype, size: req.file.size }, req.user.id);
+        res.json(new ApiResponse_1.ApiResponse(200, result, 'Post image uploaded successfully'));
+    }),
+    uploadPostVideo: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        if (!req.file)
+            throw ApiError_1.ApiError.badRequest('No file provided');
+        const result = await media_service_1.mediaService.uploadPostVideo({ buffer: req.file.buffer, originalname: req.file.originalname, mimetype: req.file.mimetype, size: req.file.size }, req.user.id);
+        res.json(new ApiResponse_1.ApiResponse(200, result, 'Post video uploaded successfully'));
+    }),
+    uploadChatFile: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        if (!req.file)
+            throw ApiError_1.ApiError.badRequest('No file provided');
+        const result = await media_service_1.mediaService.uploadChatFile({ buffer: req.file.buffer, originalname: req.file.originalname, mimetype: req.file.mimetype, size: req.file.size }, req.user.id);
+        console.log('[upload-chat] result:', JSON.stringify(result));
+        res.json(new ApiResponse_1.ApiResponse(200, result, 'Chat file uploaded successfully'));
+    }),
     upload: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        console.log('[upload] request received', req.method, req.url);
+        console.log('[upload] headers', JSON.stringify(req.headers));
+        console.log('[upload] body', req.body);
+        console.log('[upload] req.file', req.file
+            ? { fieldname: req.file.fieldname, originalname: req.file.originalname, mimetype: req.file.mimetype, size: req.file.size }
+            : undefined);
         if (!req.file) {
             throw ApiError_1.ApiError.badRequest('No file provided');
         }
-        const result = await media_service_1.mediaService.uploadFile({
-            buffer: req.file.buffer,
-            originalname: req.file.originalname,
-            mimetype: req.file.mimetype,
-            size: req.file.size,
-        }, req.user.id);
+        console.log('[upload] calling mediaService.uploadFile');
+        let result;
+        try {
+            result = await media_service_1.mediaService.uploadFile({
+                buffer: req.file.buffer,
+                originalname: req.file.originalname,
+                mimetype: req.file.mimetype,
+                size: req.file.size,
+            }, req.user.id);
+        }
+        catch (err) {
+            console.error('[upload] mediaService.uploadFile threw:', err);
+            console.error('[upload] stack:', err?.stack);
+            throw err;
+        }
+        console.log('[upload] mediaService.uploadFile succeeded', result);
         res.json(new ApiResponse_1.ApiResponse(200, result, 'File uploaded successfully'));
     }),
     uploadMultiple: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
@@ -51,14 +95,33 @@ exports.mediaController = {
         if (!file) {
             throw ApiError_1.ApiError.notFound('File not found');
         }
-        // Set appropriate headers
-        res.set({
-            'Content-Type': file.mimeType,
-            'Content-Length': file.buffer.length.toString(),
-            'Content-Disposition': `inline; filename="${file.originalName}"`,
-            'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
-        });
-        res.send(file.buffer);
+        res.redirect(file.url);
+    }),
+    // Proxy S3 object by key — avoids needing public bucket access
+    proxyFile: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const raw = req.params['key'];
+        // Support both encoded (feed%2Ffile.jpg) and decoded (feed/file.jpg) keys
+        const key = raw.includes('%') ? decodeURIComponent(raw) : raw;
+        try {
+            const command = new client_s3_1.GetObjectCommand({ Bucket: storage_1.storageBucket, Key: key });
+            const s3Res = await storage_1.s3.send(command);
+            if (s3Res.ContentType)
+                res.setHeader('Content-Type', s3Res.ContentType);
+            if (s3Res.ContentLength)
+                res.setHeader('Content-Length', s3Res.ContentLength);
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+            const stream = s3Res.Body;
+            stream.on('error', (err) => {
+                console.error('[proxyFile] stream error for key:', key, err.message);
+                if (!res.headersSent)
+                    res.status(500).end();
+            });
+            stream.pipe(res);
+        }
+        catch (err) {
+            console.error('[proxyFile] S3 error for key:', key, err?.name, err?.message);
+            throw ApiError_1.ApiError.notFound('File not found');
+        }
     }),
     getFileMetadata: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         const { id } = req.params;

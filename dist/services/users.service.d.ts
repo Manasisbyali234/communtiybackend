@@ -8,9 +8,14 @@ export declare const usersService: {
         createdAt: Date;
         username: string;
         displayName: string;
-        bio: string | null;
-        avatarUrl: string | null;
-        bannerUrl: string | null;
+        bio: string;
+        avatarUrl: string;
+        bannerUrl: string;
+        coverImage: string;
+        village: string;
+        occupation: string;
+        languages: string;
+        interests: string;
         role: import(".prisma/client").$Enums.Role;
         isVerified: boolean;
         _count: {
@@ -24,13 +29,23 @@ export declare const usersService: {
         bio?: string;
         avatarUrl?: string;
         bannerUrl?: string;
+        coverImage?: string | null;
+        village?: string;
+        occupation?: string;
+        languages?: string;
+        interests?: string;
     }): Promise<{
         id: string;
         username: string;
         displayName: string;
-        bio: string | null;
-        avatarUrl: string | null;
-        bannerUrl: string | null;
+        bio: string;
+        avatarUrl: string;
+        bannerUrl: string;
+        coverImage: string;
+        village: string;
+        occupation: string;
+        languages: string;
+        interests: string;
     }>;
     deactivateMe(userId: string): Promise<void>;
     getPublicProfile(userId: string, viewerId: string): Promise<{
@@ -42,9 +57,9 @@ export declare const usersService: {
         createdAt: Date;
         username: string;
         displayName: string;
-        bio: string | null;
-        avatarUrl: string | null;
-        bannerUrl: string | null;
+        bio: string;
+        avatarUrl: string;
+        bannerUrl: string;
         role: import(".prisma/client").$Enums.Role;
         isVerified: boolean;
         _count: {
@@ -59,31 +74,36 @@ export declare const usersService: {
         id: string;
         username: string;
         displayName: string;
-        avatarUrl: string | null;
+        avatarUrl: string;
     }>>;
     getFollowing(userId: string, cursor?: string, limit?: number): Promise<import("../utils/pagination").CursorPage<{
         id: string;
         username: string;
         displayName: string;
-        avatarUrl: string | null;
+        avatarUrl: string;
     }>>;
     getUserPosts(userId: string, cursor?: string, limit?: number): Promise<import("../utils/pagination").CursorPage<{
         author: {
             id: string;
             username: string;
             displayName: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
         };
     } & {
+        status: import(".prisma/client").$Enums.PostStatus;
         id: string;
         createdAt: Date;
         deletedAt: Date | null;
         updatedAt: Date;
+        content: string;
+        mediaType: import(".prisma/client").$Enums.MediaType | null;
         authorId: string;
         communityId: string | null;
-        content: string;
         mediaUrls: string[];
-        mediaType: import(".prisma/client").$Enums.MediaType | null;
+        videoUrl: string | null;
+        videoFileName: string | null;
+        mimeType: string | null;
+        fileSize: number | null;
         likesCount: number;
         commentsCount: number;
         sharesCount: number;

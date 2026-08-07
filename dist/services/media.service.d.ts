@@ -5,90 +5,96 @@ interface UploadedFile {
     size: number;
 }
 export declare const mediaService: {
-    /**
-     * Store a file in the database
-     */
     uploadFile(file: UploadedFile, uploadedBy: string): Promise<{
         id: string;
         filename: string;
         url: string;
     }>;
-    /**
-     * Upload multiple files
-     */
-    uploadFiles(files: UploadedFile[], uploadedBy: string): Promise<Array<{
+    uploadEventImage(file: UploadedFile, uploadedBy: string): Promise<{
         id: string;
         filename: string;
         url: string;
-    }>>;
-    /**
-     * Retrieve a file from the database
-     */
-    getFile(id: string): Promise<{
-        buffer: Buffer;
-        mimeType: string;
-        filename: string;
-        originalName: string;
-    } | null>;
-    /**
-     * Delete a file from the database
-     */
-    deleteFile(id: string, userId?: string): Promise<void>;
-    /**
-     * Get file metadata
-     */
-    getFileMetadata(id: string): Promise<{
+    }>;
+    uploadProfilePhoto(file: UploadedFile, uploadedBy: string): Promise<{
         id: string;
         filename: string;
+        url: string;
+    }>;
+    uploadCoverPhoto(file: UploadedFile, uploadedBy: string): Promise<{
+        id: string;
+        filename: string;
+        url: string;
+    }>;
+    uploadChatFile(file: UploadedFile, uploadedBy: string): Promise<{
+        id: string;
+        filename: string;
+        url: string;
+        key: string;
         originalName: string;
         mimeType: string;
         fileSize: number;
-        uploadedBy: string;
-        createdAt: Date;
+    }>;
+    uploadPostImage(file: UploadedFile, uploadedBy: string): Promise<{
+        id: string;
+        filename: string;
         url: string;
-    } | null>;
-    /**
-     * Get user's uploaded files
-     */
-    getUserFiles(userId: string, options?: {
-        skip?: number;
-        take?: number;
+    }>;
+    uploadPostVideo(file: UploadedFile, uploadedBy: string): Promise<{
+        id: string;
+        filename: string;
+        url: string;
+        mimeType: string;
+        fileSize: number;
+    }>;
+    _uploadProfileToS3(file: UploadedFile, key: string, uploadedBy: string): Promise<{
+        id: string;
+        filename: string;
+        url: string;
+    }>;
+    _uploadToS3(file: UploadedFile, key: string, uploadedBy: string): Promise<{
+        id: string;
+        filename: string;
+        url: string;
+    }>;
+    uploadFiles(files: UploadedFile[], uploadedBy: string): Promise<any[]>;
+    getFile(id: string): Promise<{
+        url: string;
+        mimeType: string;
+        filename: string;
+        originalName: string;
+    }>;
+    deleteFile(id: string, userId?: string): Promise<void>;
+    getFileMetadata(id: string): Promise<{
+        url: string;
+        id: string;
+        createdAt: Date;
+        mimeType: string;
+        fileSize: number;
+        filename: string;
+        originalName: string;
+        uploadedBy: string;
+    }>;
+    getUserFiles(userId: string, { skip, take, mimeType }: {
+        skip: number;
+        take: number;
         mimeType?: string;
     }): Promise<{
-        files: Array<{
+        files: {
+            url: string;
             id: string;
-            filename: string;
-            originalName: string;
+            createdAt: Date;
             mimeType: string;
             fileSize: number;
-            createdAt: Date;
-            url: string;
-        }>;
+            filename: string;
+            originalName: string;
+            uploadedBy: string;
+        }[];
         total: number;
     }>;
-    /**
-     * Clean up orphaned files (files not referenced by any posts, stories, etc.)
-     */
-    cleanupOrphanedFiles(): Promise<{
-        deletedCount: number;
-    }>;
-    /**
-     * Get storage statistics
-     */
     getStorageStats(): Promise<{
         totalFiles: number;
         totalSize: number;
-        averageSize: number;
-        filesByType: Array<{
-            mimeType: string;
-            count: number;
-            totalSize: number;
-        }>;
     }>;
-    /**
-     * Check if mime type is allowed
-     */
-    isAllowedMimeType(mimeType: string): boolean;
 };
 export {};
 //# sourceMappingURL=media.service.d.ts.map

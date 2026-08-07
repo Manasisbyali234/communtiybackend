@@ -7,11 +7,19 @@ const auth_1 = require("../../middleware/auth");
 const validate_1 = require("../../middleware/validate");
 const router = (0, express_1.Router)();
 const CreatePostSchema = zod_1.z.object({
-    content: zod_1.z.string().min(1).max(5000),
-    mediaUrls: zod_1.z.array(zod_1.z.string().url()).max(10).optional(),
-    communityId: zod_1.z.string().cuid().optional(),
+    content: zod_1.z.string().max(5000).optional().default(''),
+    mediaUrls: zod_1.z.array(zod_1.z.string().min(1)).max(10).optional(),
+    mediaType: zod_1.z.enum(['IMAGE', 'VIDEO', 'AUDIO']).optional(),
+    videoUrl: zod_1.z.string().optional(),
+    videoFileName: zod_1.z.string().optional(),
+    mimeType: zod_1.z.string().optional(),
+    fileSize: zod_1.z.number().optional(),
+    communityId: zod_1.z.string().cuid().optional().nullable().transform(v => v || undefined),
     isDraft: zod_1.z.boolean().optional(),
     scheduledAt: zod_1.z.coerce.date().optional().nullable(),
+    tags: zod_1.z.array(zod_1.z.string()).optional(),
+}).refine(data => (data.content && data.content.trim().length > 0) || (data.mediaUrls && data.mediaUrls.length > 0) || !!data.videoUrl, {
+    message: 'Post must have content, an image, or a video',
 });
 const UpdatePostSchema = zod_1.z.object({
     content: zod_1.z.string().min(1).max(5000).optional(),

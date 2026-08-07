@@ -6,12 +6,16 @@ const ApiResponse_1 = require("../utils/ApiResponse");
 const asyncHandler_1 = require("../utils/asyncHandler");
 exports.communitiesController = {
     list: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-        const result = await communities_service_1.communitiesService.list(req.query);
+        const result = await communities_service_1.communitiesService.list({ ...req.query, userId: req.user.id });
         res.json(new ApiResponse_1.ApiResponse(200, result));
     }),
     create: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         const community = await communities_service_1.communitiesService.create(req.user.id, req.body);
-        res.status(201).json(new ApiResponse_1.ApiResponse(201, community, 'Community created'));
+        res.status(201).json(new ApiResponse_1.ApiResponse(201, community, 'Community creation request submitted. Awaiting admin approval.'));
+    }),
+    getMyRequests: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const requests = await communities_service_1.communitiesService.getMyRequests(req.user.id);
+        res.json(new ApiResponse_1.ApiResponse(200, requests));
     }),
     get: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         const community = await communities_service_1.communitiesService.getById(req.params['id'], req.user.id);
@@ -95,7 +99,7 @@ exports.communitiesController = {
     }),
     getPosts: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         const { cursor, limit } = req.query;
-        const result = await communities_service_1.communitiesService.getCommunityPosts(req.params['id'], cursor, limit ? parseInt(limit) : 20);
+        const result = await communities_service_1.communitiesService.getCommunityPosts(req.params['id'], req.user.id, cursor, limit ? parseInt(limit) : 20);
         res.json(new ApiResponse_1.ApiResponse(200, result));
     }),
 };

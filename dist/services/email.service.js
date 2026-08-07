@@ -34,6 +34,16 @@ exports.emailService = {
             html: job.html,
         });
     },
+    async sendAdminAlert(to, subject, body) {
+        const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 480px;">
+        <h2 style="color: #16A34A;">Admin Panel — Action Required</h2>
+        <p>${body}</p>
+        <p style="color: #666; font-size: 13px;">Log in to the admin panel to review and take action.</p>
+      </div>
+    `;
+        await this.send({ to, subject, html });
+    },
     async sendOtp(to, code, type) {
         const subject = type === 'VERIFY_EMAIL' ? 'Verify your email' : 'Reset your password';
         const action = type === 'VERIFY_EMAIL' ? 'verify your email address' : 'reset your password';

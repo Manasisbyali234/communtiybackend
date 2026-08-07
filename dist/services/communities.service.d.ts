@@ -6,19 +6,12 @@ export declare const communitiesService: {
         category?: string;
         search?: string;
         sort?: "popular" | "newest";
-    }): Promise<import("../utils/pagination").CursorPage<{
-        name: string;
-        id: string;
-        createdAt: Date;
-        avatarUrl: string | null;
-        bannerUrl: string | null;
-        updatedAt: Date;
-        slug: string;
-        description: string | null;
-        category: string;
-        isPrivate: boolean;
-        memberCount: number;
-    }>>;
+        userId?: string;
+    }): Promise<{
+        data: any[];
+        nextCursor: string | null;
+        hasMore: boolean;
+    }>;
     create(creatorId: string, data: {
         name: string;
         description?: string;
@@ -26,40 +19,60 @@ export declare const communitiesService: {
         isPrivate?: boolean;
         avatarUrl?: string;
         bannerUrl?: string;
+        feedPostPrompts?: string[];
     }): Promise<{
+        status: import(".prisma/client").$Enums.CommunityStatus;
         name: string;
         id: string;
         createdAt: Date;
         avatarUrl: string | null;
         bannerUrl: string | null;
         updatedAt: Date;
-        slug: string;
         description: string | null;
+        slug: string;
         category: string;
         isPrivate: boolean;
         memberCount: number;
+        feedPostPrompts: string[];
     }>;
+    getMyRequests(userId: string): Promise<{
+        status: import(".prisma/client").$Enums.CommunityStatus;
+        name: string;
+        id: string;
+        createdAt: Date;
+        avatarUrl: string | null;
+        bannerUrl: string | null;
+        updatedAt: Date;
+        description: string | null;
+        slug: string;
+        category: string;
+        isPrivate: boolean;
+        memberCount: number;
+        feedPostPrompts: string[];
+    }[]>;
     getById(id: string, userId: string): Promise<{
         isJoined: boolean;
-        memberRole: import(".prisma/client").$Enums.CommunityMemberRole | null;
-        memberStatus: import(".prisma/client").$Enums.CommunityMemberStatus | null;
+        memberRole: import(".prisma/client").$Enums.CommunityMemberRole;
+        memberStatus: import(".prisma/client").$Enums.CommunityMemberStatus;
         rules: {
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            communityId: string;
             description: string | null;
+            communityId: string;
             title: string;
             order: number;
         }[];
+        feedPostPrompts: string[];
+        status: import(".prisma/client").$Enums.CommunityStatus;
         name: string;
         id: string;
         createdAt: Date;
         avatarUrl: string | null;
         bannerUrl: string | null;
         updatedAt: Date;
-        slug: string;
         description: string | null;
+        slug: string;
         category: string;
         isPrivate: boolean;
         memberCount: number;
@@ -72,17 +85,19 @@ export declare const communitiesService: {
         category: string;
         isPrivate: boolean;
     }>): Promise<{
+        status: import(".prisma/client").$Enums.CommunityStatus;
         name: string;
         id: string;
         createdAt: Date;
         avatarUrl: string | null;
         bannerUrl: string | null;
         updatedAt: Date;
-        slug: string;
         description: string | null;
+        slug: string;
         category: string;
         isPrivate: boolean;
         memberCount: number;
+        feedPostPrompts: string[];
     }>;
     delete(communityId: string, userId: string): Promise<void>;
     join(communityId: string, userId: string): Promise<{
@@ -94,7 +109,7 @@ export declare const communitiesService: {
         id: string;
         username: string;
         displayName: string;
-        avatarUrl: string | null;
+        avatarUrl: string;
     }[]>;
     approveMember(communityId: string, requesterId: string, targetUserId: string): Promise<void>;
     rejectMember(communityId: string, requesterId: string, targetUserId: string): Promise<void>;
@@ -104,7 +119,7 @@ export declare const communitiesService: {
         id: string;
         username: string;
         displayName: string;
-        avatarUrl: string | null;
+        avatarUrl: string;
     }>>;
     updateMemberRole(communityId: string, requesterId: string, targetUserId: string, role: CommunityMemberRole): Promise<{
         status: import(".prisma/client").$Enums.CommunityMemberStatus;
@@ -115,35 +130,48 @@ export declare const communitiesService: {
         joinedAt: Date;
     }>;
     removeMember(communityId: string, requesterId: string, targetUserId: string): Promise<void>;
-    getCommunityPosts(communityId: string, cursor?: string, limit?: number): Promise<import("../utils/pagination").CursorPage<{
-        author: {
+    getCommunityPosts(communityId: string, userId: string, cursor?: string, limit?: number): Promise<import("../utils/pagination").CursorPage<{
+        status: import(".prisma/client").$Enums.PostStatus;
+        community: {
+            name: string;
             id: string;
-            username: string;
-            displayName: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
+            slug: string;
         };
-    } & {
         id: string;
         createdAt: Date;
-        deletedAt: Date | null;
         updatedAt: Date;
-        authorId: string;
-        communityId: string | null;
         content: string;
+        mediaType: import(".prisma/client").$Enums.MediaType;
         mediaUrls: string[];
-        mediaType: import(".prisma/client").$Enums.MediaType | null;
+        videoUrl: string;
+        videoFileName: string;
+        mimeType: string;
+        fileSize: number;
         likesCount: number;
         commentsCount: number;
         sharesCount: number;
         isDraft: boolean;
-        scheduledAt: Date | null;
+        scheduledAt: Date;
+        author: {
+            id: string;
+            username: string;
+            displayName: string;
+            avatarUrl: string;
+        };
+        hashtags: {
+            hashtag: {
+                name: string;
+                id: string;
+            };
+        }[];
     }>>;
     getRules(communityId: string): Promise<{
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        communityId: string;
         description: string | null;
+        communityId: string;
         title: string;
         order: number;
     }[]>;
@@ -154,8 +182,8 @@ export declare const communitiesService: {
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        communityId: string;
         description: string | null;
+        communityId: string;
         title: string;
         order: number;
     }>;
@@ -167,8 +195,8 @@ export declare const communitiesService: {
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        communityId: string;
         description: string | null;
+        communityId: string;
         title: string;
         order: number;
     }>;
@@ -180,7 +208,7 @@ export declare const communitiesService: {
         community: {
             name: string;
             id: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
             slug: string;
         };
         sender: {
@@ -193,9 +221,9 @@ export declare const communitiesService: {
         id: string;
         expiresAt: Date;
         createdAt: Date;
+        senderId: string;
         recipientId: string;
         communityId: string;
-        senderId: string;
     })[]>;
     requireRole(communityId: string, userId: string, roles: CommunityMemberRole[]): Promise<void>;
 };

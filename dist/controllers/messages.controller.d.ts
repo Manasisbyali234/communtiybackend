@@ -4,6 +4,7 @@ export declare const messagesController: {
     getOrCreate: (req: Request, res: Response, next: import("express").NextFunction) => void;
     getMessages: (req: Request, res: Response, next: import("express").NextFunction) => void;
     sendMessage: (req: Request, res: Response, next: import("express").NextFunction) => void;
+    getUnreadCount: (req: Request, res: Response, next: import("express").NextFunction) => void;
     markRead: (req: Request, res: Response, next: import("express").NextFunction) => void;
     addReaction: (req: Request, res: Response, next: import("express").NextFunction) => void;
     removeReaction: (req: Request, res: Response, next: import("express").NextFunction) => void;

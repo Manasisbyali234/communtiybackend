@@ -8,7 +8,7 @@ const CACHE_TTL = 600; // 10 minutes
 async function withCache(key, fn) {
     const cached = await redis_1.redis.get(key);
     if (cached)
-        return JSON.parse(cached);
+        return cached;
     const result = await fn();
     await redis_1.redis.set(key, JSON.stringify(result), 'EX', CACHE_TTL);
     return result;
@@ -24,6 +24,7 @@ exports.exploreService = {
                 scheduledAt: null,
                 createdAt: { gte: since },
                 authorId: { notIn: blockedIds },
+                OR: [{ communityId: null }, { status: 'APPROVED' }],
             },
             select: {
                 id: true, content: true, mediaUrls: true, mediaType: true,
@@ -37,40 +38,56 @@ exports.exploreService = {
     },
     async getTrendingCommunities(limit = 10) {
         return withCache(`explore:trending_communities:${limit}`, () => database_1.prisma.community.findMany({
-            where: { isPrivate: false },
+            where: { isPrivate: false, status: 'APPROVED' },
             orderBy: { memberCount: 'desc' },
             take: limit,
             select: { id: true, name: true, slug: true, avatarUrl: true, memberCount: true, category: true, description: true },
         }));
     },
-    async getSuggestedUsers(userId, limit = 10) {
-        // Users followed by people you follow (2nd degree connections)
-        const following = await database_1.prisma.follow.findMany({
-            where: { followerId: userId },
-            select: { followingId: true },
-        });
-        const followingIds = following.map((f) => f.followingId);
-        if (!followingIds.length) {
-            // Fallback: most followed users
-            return database_1.prisma.user.findMany({
-                where: { id: { not: userId }, isActive: true, deletedAt: null },
-                orderBy: { followers: { _count: 'desc' } },
-                take: limit,
-                select: { id: true, username: true, displayName: true, avatarUrl: true, isVerified: true },
+    async getSuggestedUsers(userId, limit = 20) {
+        return withCache(`explore:suggested_users:${userId}:${limit}`, async () => {
+            // Users followed by people you follow (2nd degree connections)
+            const following = await database_1.prisma.follow.findMany({
+                where: { followerId: userId },
+                select: { followingId: true },
             });
-        }
-        const secondDegree = await database_1.prisma.follow.findMany({
-            where: {
-                followerId: { in: followingIds },
-                followingId: { notIn: [...followingIds, userId] },
-            },
-            select: { followingId: true },
-        });
-        const candidateIds = [...new Set(secondDegree.map((f) => f.followingId))].slice(0, limit * 2);
-        return database_1.prisma.user.findMany({
-            where: { id: { in: candidateIds }, isActive: true, deletedAt: null },
-            take: limit,
-            select: { id: true, username: true, displayName: true, avatarUrl: true, isVerified: true },
+            const followingIds = following.map((f) => f.followingId);
+            const select = {
+                id: true, username: true, displayName: true, avatarUrl: true,
+                isVerified: true, bio: true, role: true,
+                _count: { select: { followers: true } },
+            };
+            if (!followingIds.length) {
+                // Fallback: most followed users excluding self
+                return database_1.prisma.user.findMany({
+                    where: { id: { not: userId }, deletedAt: null },
+                    orderBy: { followers: { _count: 'desc' } },
+                    take: limit,
+                    select,
+                });
+            }
+            const secondDegree = await database_1.prisma.follow.findMany({
+                where: {
+                    followerId: { in: followingIds },
+                    followingId: { notIn: [...followingIds, userId] },
+                },
+                select: { followingId: true },
+            });
+            const candidateIds = [...new Set(secondDegree.map((f) => f.followingId))].slice(0, limit * 2);
+            if (!candidateIds.length) {
+                // Fallback if no 2nd-degree connections found
+                return database_1.prisma.user.findMany({
+                    where: { id: { notIn: [...followingIds, userId] }, deletedAt: null },
+                    orderBy: { followers: { _count: 'desc' } },
+                    take: limit,
+                    select,
+                });
+            }
+            return database_1.prisma.user.findMany({
+                where: { id: { in: candidateIds }, deletedAt: null },
+                take: limit,
+                select,
+            });
         });
     },
     async getSuggestedCommunities(userId, limit = 10) {
@@ -83,7 +100,7 @@ exports.exploreService = {
         const joinedIds = memberships.map((m) => m.communityId);
         if (!categories.length) {
             return database_1.prisma.community.findMany({
-                where: { isPrivate: false, id: { notIn: joinedIds } },
+                where: { isPrivate: false, status: 'APPROVED', id: { notIn: joinedIds } },
                 orderBy: { memberCount: 'desc' },
                 take: limit,
                 select: { id: true, name: true, slug: true, avatarUrl: true, memberCount: true, category: true, description: true },
@@ -92,6 +109,7 @@ exports.exploreService = {
         return database_1.prisma.community.findMany({
             where: {
                 isPrivate: false,
+                status: 'APPROVED',
                 id: { notIn: joinedIds },
                 category: { in: categories },
             },
@@ -118,7 +136,6 @@ exports.exploreService = {
             include: {
                 post: {
                     include: { author: { select: { id: true, username: true, displayName: true, avatarUrl: true } } },
-                    where: { deletedAt: null, isDraft: false, authorId: { notIn: blockedIds } },
                 },
             },
             orderBy: { createdAt: 'desc' },
@@ -126,7 +143,9 @@ exports.exploreService = {
             ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
         });
         const hasMore = posts.length > limit;
-        const items = posts.slice(0, limit).map((ph) => ph.post).filter(Boolean);
+        const items = posts.slice(0, limit)
+            .map((ph) => ph.post)
+            .filter((p) => p && !p.deletedAt && !p.isDraft && !blockedIds.includes(p.authorId));
         const nextCursor = hasMore ? posts[limit - 1]?.id : null;
         return { items, nextCursor, hasMore };
     },

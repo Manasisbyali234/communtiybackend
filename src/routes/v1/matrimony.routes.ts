@@ -5,7 +5,7 @@ import { upload } from '../../middleware/upload';
 import {
   createProfile, getMyProfile, updateProfile,
   listProfiles, getProfile, getMatches,
-  expressInterest, getInterests, respondInterest,
+  expressInterest, getInterests, getSentInterests, getReceivedInterests, respondInterest,
   approveProfile, rejectProfile, listProfilesAdmin,
   deleteProfile, uploadPhoto, deletePhoto,
 } from '../../controllers/matrimony.controller';
@@ -26,6 +26,8 @@ router.delete('/delete-photo', auth, deletePhoto);
 router.get('/my-profile', auth, getMyProfile);
 router.get('/matches', auth, getMatches);
 router.get('/interests', auth, getInterests);
+router.get('/interests/sent', auth, getSentInterests);
+router.get('/interests/received', auth, getReceivedInterests);
 router.post('/interests', auth, expressInterest);
 router.patch('/interests/:interestId', auth, respondInterest);
 

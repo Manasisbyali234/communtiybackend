@@ -5,6 +5,7 @@ const bullmq_1 = require("../config/bullmq");
 const logger_1 = require("../config/logger");
 const database_1 = require("../config/database");
 const notifications_service_1 = require("../services/notifications.service");
+const deviceTokens_service_1 = require("../services/deviceTokens.service");
 const index_1 = require("../sockets/index");
 function startEventReminderWorker() {
     const worker = new bullmq_1.Worker(bullmq_1.QUEUE_NAMES.EVENT_REMINDER, async (job) => {
@@ -36,19 +37,11 @@ function startEventReminderWorker() {
                 entityType: 'Event',
                 body: `Reminder: ${event.title} is starting soon!`,
             });
-            // 2. Real-time socket event
-            io.to(`user:${rsvp.userId}`).emit('notification:new', {
-                type: 'EVENT_REMINDER',
-                body: `Reminder: ${event.title} is starting soon!`,
-            });
-            // 3. Queue push notification
-            const user = await database_1.prisma.user.findUnique({
-                where: { id: rsvp.userId },
-                select: { deviceTokens: { select: { token: true } } }
-            });
-            if (user?.deviceTokens?.length) {
+            // 2. Queue push notification per token
+            const tokens = await deviceTokens_service_1.deviceTokensService.getTokensForUser(rsvp.userId);
+            for (const expoPushToken of tokens) {
                 await pushQueue.add('send', {
-                    tokens: user.deviceTokens.map(dt => dt.token),
+                    expoPushToken,
                     title: 'Upcoming Event',
                     body: `${event.title} is starting soon!`,
                     data: { eventId },

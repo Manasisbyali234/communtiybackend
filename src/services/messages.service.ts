@@ -4,6 +4,29 @@ import { buildCursorArgs, buildCursorPage } from '../utils/pagination';
 import { MediaType } from '@prisma/client';
 import { notificationsService } from './notifications.service';
 import { getUserPresence } from '../sockets/presence.socket';
+
+/** Throws 403 unless an ACCEPTED MatrimonyInterest exists between the two users (in either direction). */
+async function _assertMatrimonyAccepted(userIdA: string, userIdB: string) {
+  const profileA = await prisma.matrimonyProfile.findUnique({ where: { userId: userIdA }, select: { id: true } });
+  const profileB = await prisma.matrimonyProfile.findUnique({ where: { userId: userIdB }, select: { id: true } });
+  if (!profileA || !profileB) {
+    throw new ApiError(403, 'Chat is only available between users with an accepted matrimony interest');
+  }
+  const accepted = await prisma.matrimonyInterest.findFirst({
+    where: {
+      status: 'ACCEPTED',
+      OR: [
+        { fromProfileId: profileA.id, toProfileId: profileB.id },
+        { fromProfileId: profileB.id, toProfileId: profileA.id },
+      ],
+    },
+    select: { id: true },
+  });
+  if (!accepted) {
+    throw new ApiError(403, 'Chat is only available between users with an accepted matrimony interest');
+  }
+}
+
 export const messagesService = {
   async getConversations(userId: string) {
     const participations = await prisma.conversationParticipant.findMany({
@@ -66,6 +89,9 @@ export const messagesService = {
     const target = await prisma.user.findUnique({ where: { id: participantId } });
     if (!target) throw ApiError.notFound('User not found');
 
+    // Enforce matrimony interest acceptance before allowing chat
+    await _assertMatrimonyAccepted(userId, participantId);
+
     // Look for existing 1:1 conversation shared by both users
     const userConvIds = await prisma.conversationParticipant.findMany({
       where: { userId, leftAt: null },
@@ -121,8 +147,14 @@ export const messagesService = {
   async sendMessage(conversationId: string, senderId: string, data: { content?: string; mediaUrl?: string; mediaType?: MediaType }) {
     const participant = await prisma.conversationParticipant.findUnique({
       where: { conversationId_userId: { conversationId, userId: senderId } },
+      include: { conversation: { include: { participants: { select: { userId: true } } } } },
     });
     if (!participant || participant.leftAt) throw ApiError.forbidden('Not a participant in this conversation');
+
+    // Enforce matrimony interest acceptance for every message sent
+    const otherUserId = (participant as any).conversation?.participants
+      ?.find((p: any) => p.userId !== senderId)?.userId;
+    if (otherUserId) await _assertMatrimonyAccepted(senderId, otherUserId);
 
     const [message] = await prisma.$transaction([
       prisma.message.create({

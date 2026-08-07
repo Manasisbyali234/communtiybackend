@@ -55,7 +55,7 @@ class SimpleQueue {
                         continue;
                     }
                     // Check if job should be processed
-                    if (job.processAfter && job.processAfter > now) {
+                    if (job.processAfter && new Date(job.processAfter) > now) {
                         continue;
                     }
                     // Check if job has exceeded max attempts
@@ -81,7 +81,7 @@ class SimpleQueue {
                         }
                         else {
                             // Retry after delay
-                            job.processAfter = new Date(Date.now() + (job.attempts * 5000)); // Exponential backoff
+                            job.processAfter = new Date(Date.now() + (job.attempts * 5000));
                             await cache_service_1.cacheService.set(jobKey, job);
                         }
                     }

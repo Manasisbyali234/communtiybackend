@@ -11,15 +11,22 @@ const COMMENT_SELECT = {
     _count: { select: { replies: true } },
 };
 exports.commentsService = {
-    async getComments(postId, parentId, cursor, limit = 20) {
+    async getComments(postId, parentId, userId, cursor, limit = 20) {
         const args = (0, pagination_1.buildCursorArgs)({ cursor, limit });
         const comments = await database_1.prisma.comment.findMany({
             ...args,
             where: { postId, parentId: parentId ?? null },
-            select: COMMENT_SELECT,
+            select: {
+                ...COMMENT_SELECT,
+                likes: { where: { userId }, select: { id: true } },
+            },
             orderBy: { createdAt: 'asc' },
         });
-        return (0, pagination_1.buildCursorPage)(comments, limit);
+        const page = (0, pagination_1.buildCursorPage)(comments, limit);
+        return {
+            ...page,
+            data: page.data.map(({ likes, ...comment }) => ({ ...comment, isLiked: likes.length > 0 })),
+        };
     },
     async addComment(postId, authorId, content, parentId) {
         const post = await database_1.prisma.post.findUnique({ where: { id: postId } });
@@ -32,22 +39,26 @@ exports.commentsService = {
         if (parentId) {
             const parent = await database_1.prisma.comment.findUnique({ where: { id: parentId } });
             if (parent && parent.authorId !== authorId) {
+                const actor = await database_1.prisma.user.findUnique({ where: { id: authorId }, select: { displayName: true } });
                 await notifications_service_1.notificationsService.create({
                     recipientId: parent.authorId,
-                    type: 'NEW_REPLY',
+                    type: 'COMMENT',
                     actorId: authorId,
                     entityId: comment.id,
                     entityType: 'Comment',
+                    body: `${actor?.displayName ?? 'Someone'} replied to your comment.`,
                 });
             }
         }
         else if (post.authorId !== authorId) {
+            const actor = await database_1.prisma.user.findUnique({ where: { id: authorId }, select: { displayName: true } });
             await notifications_service_1.notificationsService.create({
                 recipientId: post.authorId,
-                type: 'NEW_COMMENT',
+                type: 'COMMENT',
                 actorId: authorId,
                 entityId: comment.id,
                 entityType: 'Comment',
+                body: `${actor?.displayName ?? 'Someone'} commented on your post.`,
             });
         }
         return comment;
@@ -76,14 +87,22 @@ exports.commentsService = {
         const comment = await database_1.prisma.comment.findUnique({ where: { id: commentId } });
         if (!comment)
             throw ApiError_1.ApiError.notFound('Comment not found');
-        await database_1.prisma.$transaction([
-            database_1.prisma.like.upsert({
-                where: { userId_commentId: { userId, commentId } },
-                create: { userId, commentId },
-                update: {},
-            }),
-            database_1.prisma.comment.update({ where: { id: commentId }, data: { likesCount: { increment: 1 } } }),
-        ]);
+        const existingLike = await database_1.prisma.like.findUnique({ where: { userId_commentId: { userId, commentId } } });
+        const isLiked = !existingLike;
+        const updatedComment = await database_1.prisma.$transaction(async (tx) => {
+            if (existingLike) {
+                await tx.like.delete({ where: { id: existingLike.id } });
+            }
+            else {
+                await tx.like.create({ data: { userId, commentId } });
+            }
+            return tx.comment.update({
+                where: { id: commentId },
+                data: { likesCount: { [isLiked ? 'increment' : 'decrement']: 1 } },
+                select: { likesCount: true },
+            });
+        });
+        return { isLiked, likesCount: Math.max(0, updatedComment.likesCount) };
     },
 };
 //# sourceMappingURL=comments.service.js.map

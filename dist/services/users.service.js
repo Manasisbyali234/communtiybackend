@@ -11,7 +11,7 @@ exports.usersService = {
             where: { id: userId },
             select: {
                 id: true, email: true, username: true, displayName: true, bio: true,
-                avatarUrl: true, bannerUrl: true, role: true, isVerified: true, createdAt: true,
+                avatarUrl: true, bannerUrl: true, coverImage: true, village: true, occupation: true, languages: true, interests: true, role: true, isVerified: true, createdAt: true,
                 _count: { select: { followers: true, following: true, posts: true } },
             },
         });
@@ -26,11 +26,28 @@ exports.usersService = {
         return database_1.prisma.user.update({
             where: { id: userId },
             data,
-            select: { id: true, username: true, displayName: true, bio: true, avatarUrl: true, bannerUrl: true },
+            select: { id: true, username: true, displayName: true, bio: true, avatarUrl: true, bannerUrl: true, coverImage: true, village: true, occupation: true, languages: true, interests: true },
         });
     },
     async deactivateMe(userId) {
-        await database_1.prisma.user.update({ where: { id: userId }, data: { isActive: false } });
+        // Keep the account record for audit/history, but release its unique login
+        // identifiers.  Merely setting isActive=false leaves the unique email and
+        // username occupied, which prevents a deleted user from registering again.
+        const deletedAt = new Date();
+        await database_1.prisma.user.update({
+            where: { id: userId },
+            data: {
+                isActive: false,
+                deletedAt,
+                email: `deleted+${userId}@deleted.local`,
+                username: `deleted_${userId}`,
+                displayName: 'Deleted user',
+                avatarUrl: null,
+                bannerUrl: null,
+                coverImage: null,
+                bio: null,
+            },
+        });
         await database_1.prisma.refreshToken.deleteMany({ where: { userId } });
     },
     async getPublicProfile(userId, viewerId) {
@@ -66,12 +83,14 @@ exports.usersService = {
             create: { followerId, followingId },
             update: {},
         });
+        const follower = await database_1.prisma.user.findUnique({ where: { id: followerId }, select: { displayName: true } });
         await notifications_service_1.notificationsService.create({
             recipientId: followingId,
-            type: 'NEW_FOLLOWER',
+            type: 'FOLLOW',
             actorId: followerId,
             entityId: followerId,
             entityType: 'User',
+            body: `${follower?.displayName ?? 'Someone'} started following you.`,
         });
     },
     async unfollowUser(followerId, followingId) {
@@ -103,14 +122,19 @@ exports.usersService = {
         const args = (0, pagination_1.buildCursorArgs)({ cursor, limit });
         const posts = await database_1.prisma.post.findMany({
             ...args,
-            where: { authorId: userId },
+            // Posts are soft-deleted, so never return records the author has deleted.
+            where: { authorId: userId, deletedAt: null },
             include: { author: { select: { id: true, username: true, displayName: true, avatarUrl: true } } },
             orderBy: { createdAt: 'desc' },
         });
         return (0, pagination_1.buildCursorPage)(posts, limit);
     },
     async updatePushToken(userId, expoPushToken) {
-        await database_1.prisma.user.update({ where: { id: userId }, data: { expoPushToken } });
+        await database_1.prisma.deviceToken.upsert({
+            where: { token: expoPushToken },
+            create: { userId, token: expoPushToken, platform: 'android' },
+            update: { userId },
+        });
     },
 };
 //# sourceMappingURL=users.service.js.map

@@ -8,28 +8,51 @@ const otp_1 = require("../utils/otp");
 const token_service_1 = require("./token.service");
 const email_service_1 = require("./email.service");
 const index_1 = require("../config/index");
+const logger_1 = require("../config/logger");
 exports.authService = {
     async register(data) {
         const existing = await database_1.prisma.user.findFirst({
             where: { OR: [{ email: data.email }, { username: data.username }] },
         });
         if (existing) {
+            if (!existing.isActive) {
+                // Reactivate the deactivated account with new credentials
+                const passwordHash = await (0, password_1.hashPassword)(data.password);
+                const user = await database_1.prisma.user.update({
+                    where: { id: existing.id },
+                    data: {
+                        email: data.email,
+                        username: data.username,
+                        displayName: data.displayName,
+                        passwordHash,
+                        isActive: true,
+                    },
+                    select: { id: true, email: true, username: true, displayName: true, role: true, isVerified: true },
+                });
+                const tokens = await token_service_1.tokenService.generateTokenPair(user);
+                return { user, ...tokens };
+            }
             const field = existing.email === data.email ? 'email' : 'username';
             throw ApiError_1.ApiError.conflict(`This ${field} is already registered`);
         }
         const passwordHash = await (0, password_1.hashPassword)(data.password);
+        // Validate referrer exists
+        const referredById = data.referredById
+            ? (await database_1.prisma.user.findUnique({ where: { id: data.referredById }, select: { id: true } }))?.id
+            : undefined;
         const user = await database_1.prisma.user.create({
             data: {
                 email: data.email,
                 username: data.username,
                 displayName: data.displayName,
                 passwordHash,
+                ...(referredById ? { referredById } : {}),
             },
             select: { id: true, email: true, username: true, displayName: true, role: true, isVerified: true },
         });
-        // Create + send OTP
+        // Create OTP and send email non-blocking (SMTP failure won't break registration)
         const otp = await this.createOtp(user.id, 'VERIFY_EMAIL');
-        await email_service_1.emailService.sendOtp(user.email, otp, 'VERIFY_EMAIL');
+        email_service_1.emailService.sendOtp(user.email, otp, 'VERIFY_EMAIL').catch((err) => logger_1.logger.error({ err }, 'Failed to send verification email'));
         const tokens = await token_service_1.tokenService.generateTokenPair(user);
         return { user, ...tokens };
     },
@@ -97,7 +120,7 @@ exports.authService = {
     async forgotPassword(email) {
         const user = await database_1.prisma.user.findUnique({ where: { email } });
         if (!user)
-            return; // Prevent email enumeration
+            throw ApiError_1.ApiError.notFound('Email is not registered');
         const code = await this.createOtp(user.id, 'RESET_PASSWORD');
         await email_service_1.emailService.sendOtp(email, code, 'RESET_PASSWORD');
     },

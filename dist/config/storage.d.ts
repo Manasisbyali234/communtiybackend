@@ -1,4 +1,6 @@
-export declare const s3: null;
-export declare const storageBucket = "postgresql";
-export declare const storagePublicUrl = "http://localhost:3000/api/v1/media";
+import { S3Client } from '@aws-sdk/client-s3';
+export declare const s3: S3Client;
+export declare const storageBucket: string;
+export declare const storagePublicUrl: string;
+export declare function verifyS3Access(): Promise<void>;
 //# sourceMappingURL=storage.d.ts.map

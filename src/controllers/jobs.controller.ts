@@ -118,9 +118,23 @@ export const listJobs = asyncHandler(async (req: Request, res: Response) => {
 
 // ── Get Single Job ────────────────────────────────────────────────────────────
 export const getJob = asyncHandler(async (req: Request, res: Response) => {
-  const job = await prisma.job.findUnique({ where: { id: req.params.id } });
+  const userId = (req as any).user?.id;
+  const job = await prisma.job.findUnique({
+    where: { id: req.params.id },
+    include: { _count: { select: { applications: true } } },
+  });
   if (!job) throw new ApiError(404, 'Job not found');
-  res.json(new ApiResponse(200, job));
+
+  let hasApplied = false;
+  if (userId) {
+    const app = await prisma.jobApplication.findUnique({
+      where: { userId_jobId: { userId, jobId: req.params.id } },
+    });
+    hasApplied = !!app;
+  }
+
+  const { _count, ...jobData } = job;
+  res.json(new ApiResponse(200, { ...jobData, applyCount: _count.applications, hasApplied }));
 });
 
 // ── Admin: Update Job ─────────────────────────────────────────────────────────
@@ -152,7 +166,11 @@ export const applyJob = asyncHandler(async (req: Request, res: Response) => {
 
   const { id: jobId } = req.params;
 
-  const job = await prisma.job.findUnique({ where: { id: jobId } });
+  const [job, user] = await Promise.all([
+    prisma.job.findUnique({ where: { id: jobId } }),
+    prisma.user.findUnique({ where: { id: userId }, select: { id: true } }),
+  ]);
+  if (!user) throw new ApiError(401, 'User account not found');
   if (!job) throw new ApiError(404, 'Job not found');
   if (job.status !== 'ACTIVE') throw new ApiError(400, 'Job is not accepting applications');
 
@@ -200,6 +218,18 @@ export const checkApplied = asyncHandler(async (req: Request, res: Response) => 
   });
 
   res.json(new ApiResponse(200, { applied: !!application, application }));
+});
+
+// ── Admin: Get Applicants for a Job ──────────────────────────────────────────
+export const getJobApplicants = asyncHandler(async (req: Request, res: Response) => {
+  const applications = await prisma.jobApplication.findMany({
+    where: { jobId: req.params.id },
+    orderBy: { appliedAt: 'desc' },
+    include: {
+      user: { select: { id: true, displayName: true, username: true, avatarUrl: true, email: true } },
+    },
+  });
+  res.json(new ApiResponse(200, applications));
 });
 
 // ── Admin: Update Application Status ─────────────────────────────────────────

@@ -30,6 +30,6 @@ export declare class Worker {
     private processor;
     constructor(queueName: string, processor: (job: any) => Promise<void>);
 }
-export declare const connection: null;
+export declare const connection: any;
 export {};
 //# sourceMappingURL=bullmq.d.ts.map

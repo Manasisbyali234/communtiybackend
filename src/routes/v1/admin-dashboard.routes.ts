@@ -531,4 +531,69 @@ router.put('/reports/:id', asyncHandler(async (req, res) => {
   res.json(new ApiResponse(200, report, 'Report updated'));
 }));
 
+// ── Mana Sangam (Matrimony) ───────────────────────────────────────────────────
+router.get('/matrimony', asyncHandler(async (req, res) => {
+  const { status } = req.query as Record<string, string>;
+  const where: any = {};
+  if (status) where.approvalStatus = status;
+  const profiles = await prisma.matrimonyProfile.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    include: { user: { select: { email: true, avatarUrl: true } } },
+  });
+  const result = profiles.map((p: any) => {
+    const { user, ...rest } = p;
+    const dob = new Date(p.dateOfBirth);
+    const today = new Date();
+    let age = today.getFullYear() - dob.getFullYear();
+    const m = today.getMonth() - dob.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+    return { ...rest, age, avatarUrl: user?.avatarUrl ?? null, user };
+  });
+  res.json(new ApiResponse(200, result));
+}));
+
+router.post('/matrimony/:id/approve', asyncHandler(async (req, res) => {
+  const profile = await prisma.matrimonyProfile.findUnique({
+    where: { id: req.params['id'] },
+    select: { id: true, userId: true, displayName: true },
+  });
+  if (!profile) throw ApiError.notFound('Profile not found');
+  await prisma.matrimonyProfile.update({
+    where: { id: req.params['id'] },
+    data: { approvalStatus: 'APPROVED', isVerified: true, rejectionReason: null },
+  });
+  await notificationsService.create({
+    recipientId: profile.userId,
+    type: 'MATRIMONY_PROFILE_APPROVED',
+    entityId: profile.id,
+    entityType: 'MatrimonyProfile',
+    body: `Your matrimony profile has been approved! You are now visible to other members 💍`,
+  });
+  res.json(new ApiResponse(200, null, 'Profile approved'));
+}));
+
+router.post('/matrimony/:id/reject', asyncHandler(async (req, res) => {
+  const { reason } = req.body as { reason?: string };
+  const profile = await prisma.matrimonyProfile.findUnique({
+    where: { id: req.params['id'] },
+    select: { id: true, userId: true },
+  });
+  if (!profile) throw ApiError.notFound('Profile not found');
+  await prisma.matrimonyProfile.update({
+    where: { id: req.params['id'] },
+    data: { approvalStatus: 'REJECTED', rejectionReason: reason ?? null },
+  });
+  await notificationsService.create({
+    recipientId: profile.userId,
+    type: 'MATRIMONY_PROFILE_REJECTED',
+    entityId: profile.id,
+    entityType: 'MatrimonyProfile',
+    body: reason
+      ? `Your matrimony profile was rejected: ${reason}`
+      : `Your matrimony profile was rejected. Please update and resubmit.`,
+  });
+  res.json(new ApiResponse(200, null, 'Profile rejected'));
+}));
+
 export default router;

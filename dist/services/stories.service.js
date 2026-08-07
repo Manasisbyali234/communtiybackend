@@ -5,6 +5,7 @@ const database_1 = require("../config/database");
 const redis_1 = require("../config/redis");
 const bullmq_1 = require("../config/bullmq");
 const ApiError_1 = require("../utils/ApiError");
+const notifications_service_1 = require("./notifications.service");
 const STORY_TTL_SECONDS = 24 * 60 * 60; // 24 hours
 exports.storiesService = {
     async getFeed(userId) {
@@ -34,6 +35,19 @@ exports.storiesService = {
                 group.hasUnseen = true;
         }
         return Array.from(grouped.values());
+    },
+    async getById(storyId) {
+        const story = await database_1.prisma.story.findUnique({
+            where: { id: storyId },
+            include: {
+                author: { select: { id: true, username: true, displayName: true, avatarUrl: true } },
+            },
+        });
+        if (!story)
+            throw ApiError_1.ApiError.notFound('Story not found');
+        if (story.expiresAt < new Date())
+            throw ApiError_1.ApiError.notFound('Story has expired');
+        return story;
     },
     async create(authorId, mediaUrl, mediaType) {
         const expiresAt = new Date(Date.now() + STORY_TTL_SECONDS * 1000);
@@ -98,6 +112,17 @@ exports.storiesService = {
             database_1.prisma.like.create({ data: { userId, storyId } }),
             database_1.prisma.story.update({ where: { id: storyId }, data: { likesCount: { increment: 1 } } }),
         ]);
+        if (story.authorId !== userId) {
+            const actor = await database_1.prisma.user.findUnique({ where: { id: userId }, select: { displayName: true } });
+            await notifications_service_1.notificationsService.create({
+                recipientId: story.authorId,
+                type: 'STORY_LIKE',
+                actorId: userId,
+                entityId: storyId,
+                entityType: 'Story',
+                body: `${actor?.displayName ?? 'Someone'} liked your story.`,
+            });
+        }
     },
     async unlikeStory(storyId, userId) {
         const existing = await database_1.prisma.like.findUnique({ where: { userId_storyId: { userId, storyId } } });
@@ -115,10 +140,21 @@ exports.storiesService = {
             throw ApiError_1.ApiError.notFound('Story not found');
         if (story.expiresAt < new Date())
             throw ApiError_1.ApiError.notFound('Story has expired');
-        return database_1.prisma.storyReply.create({
+        const reply = await database_1.prisma.storyReply.create({
             data: { storyId, senderId, content },
             include: { sender: { select: { id: true, username: true, displayName: true, avatarUrl: true } } },
         });
+        if (story.authorId !== senderId) {
+            await notifications_service_1.notificationsService.create({
+                recipientId: story.authorId,
+                type: 'STORY_REPLY',
+                actorId: senderId,
+                entityId: storyId,
+                entityType: 'Story',
+                body: `${reply.sender.displayName} replied to your story.`,
+            });
+        }
+        return reply;
     },
     async getStoryReplies(storyId, userId) {
         const story = await database_1.prisma.story.findUnique({ where: { id: storyId } });
