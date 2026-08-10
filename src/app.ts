@@ -14,6 +14,9 @@ import routes from './routes';
 export function buildApp(): Application {
   const app = express();
 
+  // Trust proxy (required when behind nginx/load balancer)
+  app.set('trust proxy', 1);
+
   // 1. Request ID + Structured logging (first, so all logs have request context)
   app.use(requestLogger);
 
