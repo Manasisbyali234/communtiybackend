@@ -1,0 +1,16 @@
+◇ injected env (33) from .env // tip: ⌘ suppress logs { quiet: true }
+[2026-08-10 12:45:41.735 +0530] [31mERROR[39m: [36mFailed to bootstrap server[39m
+    err: {
+      "type": "PrismaClientInitializationError",
+      "message": "Can't reach database server at `127.0.0.1:5433`\n\nPlease make sure your database server is running at `127.0.0.1:5433`.",
+      "stack":
+          PrismaClientInitializationError: Can't reach database server at `127.0.0.1:5433`
+          
+          Please make sure your database server is running at `127.0.0.1:5433`.
+              at t (d:\Community backend\Backend 2\node_modules\@prisma\client\runtime\library.js:112:2488)
+      "name": "PrismaClientInitializationError",
+      "clientVersion": "5.22.0",
+      "errorCode": "P1001"
+    }
+
+d:\Community backend\Backend 2>
