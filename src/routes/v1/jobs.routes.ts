@@ -5,7 +5,7 @@ import { upload } from '../../middleware/upload';
 import {
   createJob, listJobsAdmin, listJobs, getJob, updateJob, deleteJob,
   applyJob, getUserApplications, checkApplied, updateApplicationStatus,
-  uploadJobLogo,
+  uploadJobLogo, getJobApplicants,
 } from '../../controllers/jobs.controller';
 import { optionalAuth } from '../../middleware/auth';
 
@@ -28,5 +28,6 @@ router.put('/:id', adminAuth, updateJob);
 router.delete('/:id', adminAuth, deleteJob);
 router.post('/:id/apply', auth, applyJob);
 router.get('/:id/applied', auth, checkApplied);
+router.get('/:id/applicants', adminAuth, getJobApplicants);
 
 export default router;

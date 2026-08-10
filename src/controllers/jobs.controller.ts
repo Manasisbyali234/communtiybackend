@@ -202,6 +202,29 @@ export const checkApplied = asyncHandler(async (req: Request, res: Response) => 
   res.json(new ApiResponse(200, { applied: !!application, application }));
 });
 
+// ── Admin: Get Job Applicants ─────────────────────────────────────────────────
+export const getJobApplicants = asyncHandler(async (req: Request, res: Response) => {
+  const { id: jobId } = req.params;
+
+  const job = await prisma.job.findUnique({ where: { id: jobId }, select: { id: true, jobTitle: true, companyName: true } });
+  if (!job) throw new ApiError(404, 'Job not found');
+
+  const applications = await prisma.jobApplication.findMany({
+    where: { jobId },
+    orderBy: { appliedAt: 'desc' },
+    include: {
+      user: {
+        select: {
+          id: true, displayName: true, email: true, avatarUrl: true,
+          phone: true, occupation: true, village: true,
+        },
+      },
+    },
+  });
+
+  res.json(new ApiResponse(200, { job, applications }));
+});
+
 // ── Admin: Update Application Status ─────────────────────────────────────────
 export const updateApplicationStatus = asyncHandler(async (req: Request, res: Response) => {
   const { applicationId } = req.params;

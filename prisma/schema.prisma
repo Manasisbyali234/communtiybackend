@@ -102,6 +102,7 @@ enum NotificationType {
   MATRIMONY_INTEREST_ACCEPTED
   MATRIMONY_PROFILE_APPROVED
   MATRIMONY_PROFILE_REJECTED
+  MATRIMONY_MATCH
 }
 
 enum ConnectionStatus {
@@ -982,6 +983,10 @@ model MatrimonyProfile {
 
   interestsSent     MatrimonyInterest[]    @relation("InterestFrom")
   interestsReceived MatrimonyInterest[]    @relation("InterestTo")
+  likesGiven        MatrimonyLike[]        @relation("LikeFrom")
+  likesReceived     MatrimonyLike[]        @relation("LikeTo")
+  matchesAsA        MatrimonyMatch[]       @relation("MatchA")
+  matchesAsB        MatrimonyMatch[]       @relation("MatchB")
 
   @@index([gender])
   @@index([religion])
@@ -1006,4 +1011,32 @@ model MatrimonyInterest {
   @@index([fromProfileId])
   @@index([toProfileId])
   @@index([status])
+}
+
+// Mutual like → match → chat
+model MatrimonyLike {
+  id            String           @id @default(cuid())
+  fromProfileId String
+  fromProfile   MatrimonyProfile @relation("LikeFrom", fields: [fromProfileId], references: [id], onDelete: Cascade)
+  toProfileId   String
+  toProfile     MatrimonyProfile @relation("LikeTo", fields: [toProfileId], references: [id], onDelete: Cascade)
+  createdAt     DateTime         @default(now())
+
+  @@unique([fromProfileId, toProfileId])
+  @@index([fromProfileId])
+  @@index([toProfileId])
+}
+
+model MatrimonyMatch {
+  id             String           @id @default(cuid())
+  profileAId     String
+  profileA       MatrimonyProfile @relation("MatchA", fields: [profileAId], references: [id], onDelete: Cascade)
+  profileBId     String
+  profileB       MatrimonyProfile @relation("MatchB", fields: [profileBId], references: [id], onDelete: Cascade)
+  conversationId String?          @unique
+  createdAt      DateTime         @default(now())
+
+  @@unique([profileAId, profileBId])
+  @@index([profileAId])
+  @@index([profileBId])
 }

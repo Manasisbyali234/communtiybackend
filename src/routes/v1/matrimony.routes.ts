@@ -8,12 +8,13 @@ import {
   expressInterest, getInterests, respondInterest,
   approveProfile, rejectProfile, listProfilesAdmin,
   deleteProfile, uploadPhoto, deletePhoto,
+  likeProfile, getMyLikeMatches,
 } from '../../controllers/matrimony.controller';
 
 const router = Router();
 
 // ── Admin routes ──────────────────────────────────────────────────────────────
-router.get('/admin/all', adminAuth, listProfilesAdmin);           // ?status=PENDING|APPROVED|REJECTED
+router.get('/admin/all', adminAuth, listProfilesAdmin);
 router.patch('/admin/:id/approve', adminAuth, approveProfile);
 router.patch('/admin/:id/reject', adminAuth, rejectProfile);
 router.delete('/admin/:id', adminAuth, deleteProfile);
@@ -25,9 +26,11 @@ router.delete('/delete-photo', auth, deletePhoto);
 // ── Authenticated user routes ─────────────────────────────────────────────────
 router.get('/my-profile', auth, getMyProfile);
 router.get('/matches', auth, getMatches);
+router.get('/like-matches', auth, getMyLikeMatches);
 router.get('/interests', auth, getInterests);
 router.post('/interests', auth, expressInterest);
 router.patch('/interests/:interestId', auth, respondInterest);
+router.post('/like', auth, likeProfile);
 
 // ── Profile CRUD ──────────────────────────────────────────────────────────────
 router.get('/profiles', auth, listProfiles);

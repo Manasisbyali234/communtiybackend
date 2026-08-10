@@ -592,3 +592,117 @@ export const deleteProfile = asyncHandler(async (req: Request, res: Response) =>
 
 // ── Legacy: kept for backward compat ─────────────────────────────────────────
 export const verifyProfile = approveProfile;
+
+// ── Like Profile (triggers match if mutual) ───────────────────────────────────
+export const likeProfile = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.id;
+  if (!userId) throw new ApiError(401, 'Unauthorized');
+
+  const myProfile = await prisma.matrimonyProfile.findUnique({
+    where: { userId },
+    select: { id: true, displayName: true, approvalStatus: true },
+  });
+  if (!myProfile) throw new ApiError(404, 'Create your profile first');
+  if (myProfile.approvalStatus !== MatrimonyApprovalStatus.APPROVED)
+    throw new ApiError(403, 'Your profile must be approved before liking others');
+
+  const { toProfileId } = req.body;
+  if (!toProfileId) throw new ApiError(400, 'toProfileId is required');
+  if (toProfileId === myProfile.id) throw new ApiError(400, 'Cannot like yourself');
+
+  const toProfile = await prisma.matrimonyProfile.findUnique({
+    where: { id: toProfileId },
+    select: { id: true, userId: true, displayName: true, approvalStatus: true },
+  });
+  if (!toProfile || toProfile.approvalStatus !== MatrimonyApprovalStatus.APPROVED)
+    throw new ApiError(404, 'Profile not found');
+
+  // Upsert like (idempotent)
+  await (prisma as any).matrimonyLike.upsert({
+    where: { fromProfileId_toProfileId: { fromProfileId: myProfile.id, toProfileId } },
+    create: { fromProfileId: myProfile.id, toProfileId },
+    update: {},
+  });
+
+  // Check mutual like
+  const mutualLike = await (prisma as any).matrimonyLike.findUnique({
+    where: { fromProfileId_toProfileId: { fromProfileId: toProfileId, toProfileId: myProfile.id } },
+  });
+
+  if (!mutualLike) {
+    return res.json(new ApiResponse(200, { matched: false }, 'Like recorded'));
+  }
+
+  // Mutual like → create match + conversation if not already exists
+  const [pA, pB] = [myProfile.id, toProfileId].sort();
+  const existingMatch = await (prisma as any).matrimonyMatch.findUnique({
+    where: { profileAId_profileBId: { profileAId: pA, profileBId: pB } },
+  });
+
+  if (existingMatch) {
+    return res.json(new ApiResponse(200, { matched: true, conversationId: existingMatch.conversationId }, "It's a match!"));
+  }
+
+  // Create conversation + match atomically
+  const conversation = await prisma.conversation.create({
+    data: {
+      participants: {
+        create: [{ userId }, { userId: toProfile.userId }],
+      },
+    },
+  });
+
+  await (prisma as any).matrimonyMatch.create({
+    data: { profileAId: pA, profileBId: pB, conversationId: conversation.id },
+  });
+
+  await Promise.all([
+    notificationsService.create({
+      recipientId: userId,
+      type: 'MATRIMONY_MATCH' as any,
+      actorId: toProfile.userId,
+      entityId: conversation.id,
+      entityType: 'Conversation',
+      body: `You matched with ${toProfile.displayName}! Start chatting 💍`,
+    }),
+    notificationsService.create({
+      recipientId: toProfile.userId,
+      type: 'MATRIMONY_MATCH' as any,
+      actorId: userId,
+      entityId: conversation.id,
+      entityType: 'Conversation',
+      body: `You matched with ${myProfile.displayName}! Start chatting 💍`,
+    }),
+  ]);
+
+  res.status(201).json(new ApiResponse(201, { matched: true, conversationId: conversation.id }, "It's a match!"));
+});
+
+// ── Get My Like-Based Matches ─────────────────────────────────────────────────
+export const getMyLikeMatches = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.id;
+  if (!userId) throw new ApiError(401, 'Unauthorized');
+
+  const myProfile = await prisma.matrimonyProfile.findUnique({ where: { userId }, select: { id: true } });
+  if (!myProfile) return res.json(new ApiResponse(200, []));
+
+  const matches = await (prisma as any).matrimonyMatch.findMany({
+    where: { OR: [{ profileAId: myProfile.id }, { profileBId: myProfile.id }] },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      profileA: { select: { id: true, displayName: true, photos: true, city: true, occupation: true, dateOfBirth: true, user: { select: { avatarUrl: true } } } },
+      profileB: { select: { id: true, displayName: true, photos: true, city: true, occupation: true, dateOfBirth: true, user: { select: { avatarUrl: true } } } },
+    },
+  });
+
+  const result = matches.map((m: any) => {
+    const other = m.profileAId === myProfile.id ? m.profileB : m.profileA;
+    return {
+      matchId: m.id,
+      conversationId: m.conversationId,
+      profile: { ...other, age: calcAge(new Date(other.dateOfBirth)), avatarUrl: other.user?.avatarUrl ?? null },
+    };
+  });
+
+  res.json(new ApiResponse(200, result));
+});
