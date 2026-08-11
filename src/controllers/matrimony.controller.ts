@@ -452,18 +452,46 @@ export const respondInterest = asyncHandler(async (req: Request, res: Response) 
 
   const updated = await prisma.matrimonyInterest.update({ where: { id: interestId }, data: { status } });
 
+  let conversationId: string | null = null;
+
   if (status === 'ACCEPTED' && interest.fromProfile?.userId) {
-    await notificationsService.create({
-      recipientId: interest.fromProfile.userId,
-      type: 'MATRIMONY_INTEREST_ACCEPTED',
-      actorId: userId,
-      entityId: interest.id,
-      entityType: 'MatrimonyInterest',
-      body: `${myProfile.displayName} accepted your matrimony interest 💍`,
+    // Check if the other side also sent an interest that is ACCEPTED (mutual)
+    const reverseInterest = await prisma.matrimonyInterest.findUnique({
+      where: { fromProfileId_toProfileId: { fromProfileId: myProfile.id, toProfileId: interest.fromProfileId } },
     });
+
+    if (reverseInterest?.status === 'ACCEPTED') {
+      // Both sides accepted each other — create private matrimony conversation
+      const conversation = await prisma.conversation.create({
+        data: {
+          isMatrimonyChat: true,
+          participants: { create: [{ userId }, { userId: interest.fromProfile.userId }] },
+        },
+      });
+      conversationId = conversation.id;
+      await prisma.matrimonyInterest.update({ where: { id: interestId }, data: { conversationId } });
+      await prisma.matrimonyInterest.update({ where: { id: reverseInterest.id }, data: { conversationId } });
+      await notificationsService.create({
+        recipientId: interest.fromProfile.userId,
+        type: 'MATRIMONY_INTEREST_ACCEPTED',
+        actorId: userId,
+        entityId: conversation.id,
+        entityType: 'Conversation',
+        body: `${myProfile.displayName} accepted your interest - you can now chat!`,
+      });
+    } else {
+      await notificationsService.create({
+        recipientId: interest.fromProfile.userId,
+        type: 'MATRIMONY_INTEREST_ACCEPTED',
+        actorId: userId,
+        entityId: interest.id,
+        entityType: 'MatrimonyInterest',
+        body: `${myProfile.displayName} accepted your matrimony interest`,
+      });
+    }
   }
 
-  res.json(new ApiResponse(200, updated, `Interest ${status.toLowerCase()}`));
+  res.json(new ApiResponse(200, { ...updated, conversationId }, `Interest ${status.toLowerCase()}`));
 });
 
 // ── Upload Profile Photo ──────────────────────────────────────────────────────
@@ -646,6 +674,7 @@ export const likeProfile = asyncHandler(async (req: Request, res: Response) => {
   // Create conversation + match atomically
   const conversation = await prisma.conversation.create({
     data: {
+      isMatrimonyChat: true,
       participants: {
         create: [{ userId }, { userId: toProfile.userId }],
       },
@@ -705,4 +734,26 @@ export const getMyLikeMatches = asyncHandler(async (req: Request, res: Response)
   });
 
   res.json(new ApiResponse(200, result));
+});
+
+// ── Get Matrimony Match Chat ───────────────────────────────────────────────────
+export const getMatchChat = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.id;
+  if (!userId) throw new ApiError(401, 'Unauthorized');
+
+  const myProfile = await prisma.matrimonyProfile.findUnique({ where: { userId }, select: { id: true } });
+  if (!myProfile) throw new ApiError(404, 'Profile not found');
+
+  const { matchId } = req.params;
+  const match = await (prisma as any).matrimonyMatch.findUnique({
+    where: { id: matchId },
+    select: { profileAId: true, profileBId: true, conversationId: true },
+  });
+  if (!match) throw new ApiError(404, 'Match not found');
+  if (match.profileAId !== myProfile.id && match.profileBId !== myProfile.id) {
+    throw new ApiError(403, 'Forbidden');
+  }
+  if (!match.conversationId) throw new ApiError(404, 'No conversation for this match yet');
+
+  res.json(new ApiResponse(200, { conversationId: match.conversationId }));
 });

@@ -519,15 +519,17 @@ model CommunityInvite {
 }
 
 model Conversation {
-  id            String    @id @default(cuid())
-  isGroup       Boolean   @default(false)
-  groupName     String?
-  groupAvatarUrl String?
-  lastMessageAt DateTime?
-  createdAt     DateTime  @default(now())
+  id              String    @id @default(cuid())
+  isGroup         Boolean   @default(false)
+  groupName       String?
+  groupAvatarUrl  String?
+  lastMessageAt   DateTime?
+  isMatrimonyChat Boolean   @default(false)
+  createdAt       DateTime  @default(now())
 
   participants ConversationParticipant[]
   messages     Message[]
+  matrimonyMatch MatrimonyMatch?
 }
 
 model ConversationParticipant {
@@ -1004,6 +1006,7 @@ model MatrimonyInterest {
   toProfile     MatrimonyProfile        @relation("InterestTo", fields: [toProfileId], references: [id], onDelete: Cascade)
   status        MatrimonyInterestStatus @default(PENDING)
   message       String?
+  conversationId String?               @unique
   createdAt     DateTime                @default(now())
   updatedAt     DateTime                @updatedAt
 
@@ -1034,6 +1037,7 @@ model MatrimonyMatch {
   profileBId     String
   profileB       MatrimonyProfile @relation("MatchB", fields: [profileBId], references: [id], onDelete: Cascade)
   conversationId String?          @unique
+  conversation   Conversation?    @relation(fields: [conversationId], references: [id])
   createdAt      DateTime         @default(now())
 
   @@unique([profileAId, profileBId])

@@ -25,7 +25,10 @@ export const messagesService = {
       },
     });
 
-    const conversations = await Promise.all(participations.map(async (p) => {
+    // Exclude matrimony-only chats from the main chat screen
+    const filtered = participations.filter((p) => !(p.conversation as any).isMatrimonyChat);
+
+    const conversations = await Promise.all(filtered.map(async (p) => {
       const participants = await Promise.all(p.conversation.participants.map(async (part) => ({
         ...part,
         user: part.userId === userId ? part.user : { ...part.user, ...(await getUserPresence(part.userId)) },

@@ -8,7 +8,7 @@ import {
   expressInterest, getInterests, respondInterest,
   approveProfile, rejectProfile, listProfilesAdmin,
   deleteProfile, uploadPhoto, deletePhoto,
-  likeProfile, getMyLikeMatches,
+  likeProfile, getMyLikeMatches, getMatchChat,
 } from '../../controllers/matrimony.controller';
 
 const router = Router();
@@ -27,6 +27,7 @@ router.delete('/delete-photo', auth, deletePhoto);
 router.get('/my-profile', auth, getMyProfile);
 router.get('/matches', auth, getMatches);
 router.get('/like-matches', auth, getMyLikeMatches);
+router.get('/matches/:matchId/chat', auth, getMatchChat);
 router.get('/interests', auth, getInterests);
 router.post('/interests', auth, expressInterest);
 router.patch('/interests/:interestId', auth, respondInterest);
