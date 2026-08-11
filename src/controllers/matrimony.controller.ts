@@ -202,13 +202,19 @@ export const listProfiles = asyncHandler(async (req: Request, res: Response) => 
   const where: any = { isActive: true, approvalStatus: MatrimonyApprovalStatus.APPROVED };
 
   // Fetch requesting user's profile for exclusion + smart defaults
-  let myProfile: { id: string; gender: string; dateOfBirth: Date } | null = null;
+  let myProfile: { id: string; gender: string; dateOfBirth: Date; partnerMinAge: number | null; partnerMaxAge: number | null; approvalStatus: string } | null = null;
   if (userId) {
     myProfile = await prisma.matrimonyProfile.findUnique({
       where: { userId },
-      select: { id: true, gender: true, dateOfBirth: true },
+      select: { id: true, gender: true, dateOfBirth: true, partnerMinAge: true, partnerMaxAge: true, approvalStatus: true },
     });
-    if (myProfile) where.id = { not: myProfile.id };
+
+    // Gate: must have an approved profile to browse
+    if (!myProfile || myProfile.approvalStatus !== MatrimonyApprovalStatus.APPROVED) {
+      throw new ApiError(403, 'Your profile must be approved before you can browse others');
+    }
+
+    where.id = { not: myProfile.id };
   }
 
   // ── Gender: auto opposite gender if not specified ──────────────────────────
@@ -220,13 +226,17 @@ export const listProfiles = asyncHandler(async (req: Request, res: Response) => 
       : undefined;
   }
 
-  // ── Age: use ±2 smart default based on user's own age if not specified ─────
+  // ── Age filter ─────────────────────────────────────────────────────────────
+  // Priority: 1) explicit query params  2) user's partner preference  3) no filter
   if (minAge || maxAge) {
     where.dateOfBirth = _dobRange(Number(minAge), Number(maxAge));
-  } else if (myProfile) {
-    const myAge = calcAge(new Date(myProfile.dateOfBirth));
-    where.dateOfBirth = _dobRange(myAge - AGE_BUFFER, myAge + AGE_BUFFER);
+  } else if (myProfile?.partnerMinAge || myProfile?.partnerMaxAge) {
+    where.dateOfBirth = _dobRange(
+      myProfile.partnerMinAge ?? undefined,
+      myProfile.partnerMaxAge ?? undefined,
+    );
   }
+  // else: no age filter — show all ages
 
   if (religion) where.religion = { contains: religion, mode: 'insensitive' };
   if (caste) where.caste = { contains: caste, mode: 'insensitive' };
@@ -280,6 +290,17 @@ export const getProfile = asyncHandler(async (req: Request, res: Response) => {
   if (!profile) throw new ApiError(404, 'Profile not found');
   if (profile.approvalStatus !== MatrimonyApprovalStatus.APPROVED && profile.userId !== userId) {
     throw new ApiError(404, 'Profile not found');
+  }
+
+  // Gate: viewer must have an approved profile (unless viewing their own)
+  if (userId && profile.userId !== userId) {
+    const viewerProfile = await prisma.matrimonyProfile.findUnique({
+      where: { userId },
+      select: { approvalStatus: true },
+    });
+    if (!viewerProfile || viewerProfile.approvalStatus !== MatrimonyApprovalStatus.APPROVED) {
+      throw new ApiError(403, 'Your profile must be approved before you can view others');
+    }
   }
 
   let hasExpressedInterest = false;
