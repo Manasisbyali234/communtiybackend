@@ -326,7 +326,7 @@ export const getMatches = asyncHandler(async (req: Request, res: Response) => {
   if (!userId) throw new ApiError(401, 'Unauthorized');
 
   const myProfile = await prisma.matrimonyProfile.findUnique({ where: { userId } });
-  if (!myProfile) throw new ApiError(404, 'Create your profile first to see matches');
+  if (!myProfile) return res.json(new ApiResponse(200, []));
 
   const oppositeGender = myProfile.gender === 'MALE' ? 'FEMALE' : myProfile.gender === 'FEMALE' ? 'MALE' : undefined;
   const myAge = calcAge(new Date(myProfile.dateOfBirth));
@@ -383,7 +383,9 @@ export const expressInterest = asyncHandler(async (req: Request, res: Response) 
   const existing = await prisma.matrimonyInterest.findUnique({
     where: { fromProfileId_toProfileId: { fromProfileId: myProfile.id, toProfileId } },
   });
-  if (existing) throw new ApiError(409, 'Interest already sent');
+  if (existing) {
+    return res.status(200).json(new ApiResponse(200, existing, 'Interest already sent'));
+  }
 
   const interest = await prisma.matrimonyInterest.create({
     data: { fromProfileId: myProfile.id, toProfileId, message: message?.trim() || null },
@@ -442,6 +444,7 @@ export const getInterests = asyncHandler(async (req: Request, res: Response) => 
     toProfile: i.toProfile
       ? { ...i.toProfile, age: calcAge(new Date(i.toProfile.dateOfBirth)), avatarUrl: i.toProfile.user?.avatarUrl ?? null }
       : null,
+    conversationId: (i as any).conversationId ?? null,
   }));
 
   res.json(new ApiResponse(200, result));
