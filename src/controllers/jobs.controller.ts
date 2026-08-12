@@ -145,12 +145,39 @@ export const deleteJob = asyncHandler(async (req: Request, res: Response) => {
   res.json(new ApiResponse(200, null, 'Job deleted'));
 });
 
+// ── Upload Resume ─────────────────────────────────────────────────────────────
+export const uploadResume = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.id;
+  if (!userId) throw new ApiError(401, 'Unauthorized');
+  if (!req.file) throw new ApiError(400, 'No file provided');
+
+  const ALLOWED = new Set(['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']);
+  if (!ALLOWED.has(req.file.mimetype.toLowerCase())) throw new ApiError(400, 'Only PDF or Word documents allowed');
+  if (req.file.size > 5 * 1024 * 1024) throw new ApiError(400, 'Resume must be under 5MB');
+
+  const ext = path.extname(req.file.originalname) || '.pdf';
+  const key = `resumes/${userId}/${crypto.randomUUID()}${ext}`;
+
+  await s3.send(new PutObjectCommand({
+    Bucket: storageBucket,
+    Key: key,
+    Body: req.file.buffer,
+    ContentType: req.file.mimetype,
+  }));
+
+  const url = `${config.APP_URL}/api/v1/media/proxy/${encodeURIComponent(key)}`;
+  res.json(new ApiResponse(200, { url }, 'Resume uploaded'));
+});
+
 // ── Apply for Job ─────────────────────────────────────────────────────────────
 export const applyJob = asyncHandler(async (req: Request, res: Response) => {
   const userId = (req as any).user?.id;
   if (!userId) throw new ApiError(401, 'Unauthorized');
 
   const { id: jobId } = req.params;
+  const { resumeUrl } = req.body;
+
+  if (!resumeUrl) throw new ApiError(400, 'Resume is required to apply');
 
   const job = await prisma.job.findUnique({ where: { id: jobId } });
   if (!job) throw new ApiError(404, 'Job not found');
@@ -162,7 +189,7 @@ export const applyJob = asyncHandler(async (req: Request, res: Response) => {
   if (existing) throw new ApiError(409, 'Already applied');
 
   const [application] = await prisma.$transaction([
-    prisma.jobApplication.create({ data: { jobId, userId } }),
+    prisma.jobApplication.create({ data: { jobId, userId, resumeUrl } }),
     prisma.job.update({ where: { id: jobId }, data: { applyCount: { increment: 1 } } }),
   ]);
 

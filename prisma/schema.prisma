@@ -899,6 +899,7 @@ model JobApplication {
   job       Job                  @relation(fields: [jobId], references: [id], onDelete: Cascade)
   userId    String
   user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resumeUrl String?
   status    JobApplicationStatus @default(APPLIED)
   appliedAt DateTime             @default(now())
   updatedAt DateTime             @updatedAt
