@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+﻿import { Request, Response } from 'express';
 import path from 'path';
 import crypto from 'crypto';
 import { PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
@@ -337,10 +337,10 @@ export const getMatches = asyncHandler(async (req: Request, res: Response) => {
   if (myProfile.partnerReligion) where.religion = { contains: myProfile.partnerReligion, mode: 'insensitive' };
   if (myProfile.partnerCaste) where.caste = { contains: myProfile.partnerCaste, mode: 'insensitive' };
 
-  // Use partner preference age range, fallback to ±2 of own age
-  const minAge = myProfile.partnerMinAge ?? myAge - AGE_BUFFER;
-  const maxAge = myProfile.partnerMaxAge ?? myAge + AGE_BUFFER;
-  where.dateOfBirth = _dobRange(minAge, maxAge);
+  // Only apply age filter if user has set partner age preferences
+  if (myProfile.partnerMinAge || myProfile.partnerMaxAge) {
+    where.dateOfBirth = _dobRange(myProfile.partnerMinAge ?? undefined, myProfile.partnerMaxAge ?? undefined);
+  }
 
   const profiles = await prisma.matrimonyProfile.findMany({
     where,
