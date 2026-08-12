@@ -9,6 +9,55 @@ import { ApiResponse } from '../utils/ApiResponse';
 import { ApiError } from '../utils/ApiError';
 import { asyncHandler } from '../utils/asyncHandler';
 
+// ── Admin: Employer CRUD ─────────────────────────────────────────────────────
+export const createEmployer = asyncHandler(async (req: Request, res: Response) => {
+  const { name, logoUrl, website, industry, description, email, phone, address, city, state } = req.body;
+  if (!name) throw new ApiError(400, 'Company name is required');
+  const employer = await prisma.employer.create({
+    data: { name, logoUrl, website, industry, description, email, phone, address, city, state },
+  });
+  res.status(201).json(new ApiResponse(201, employer, 'Employer created'));
+});
+
+export const listEmployers = asyncHandler(async (_req: Request, res: Response) => {
+  const employers = await prisma.employer.findMany({
+    orderBy: { createdAt: 'desc' },
+    include: { _count: { select: { jobs: true } } },
+  });
+  res.json(new ApiResponse(200, employers.map(({ _count, ...e }) => ({ ...e, jobCount: _count.jobs }))));
+});
+
+export const getEmployer = asyncHandler(async (req: Request, res: Response) => {
+  const employer = await prisma.employer.findUnique({ where: { id: req.params.id } });
+  if (!employer) throw new ApiError(404, 'Employer not found');
+  res.json(new ApiResponse(200, employer));
+});
+
+export const updateEmployer = asyncHandler(async (req: Request, res: Response) => {
+  const employer = await prisma.employer.update({
+    where: { id: req.params.id },
+    data: req.body,
+  });
+  res.json(new ApiResponse(200, employer, 'Employer updated'));
+});
+
+export const deleteEmployer = asyncHandler(async (req: Request, res: Response) => {
+  await prisma.employer.delete({ where: { id: req.params.id } });
+  res.json(new ApiResponse(200, null, 'Employer deleted'));
+});
+
+export const uploadEmployerLogo = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.file) throw new ApiError(400, 'No file provided');
+  const ALLOWED = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
+  if (!ALLOWED.has(req.file.mimetype.toLowerCase())) throw new ApiError(400, 'Only JPEG, PNG or WebP allowed');
+  if (req.file.size > 5 * 1024 * 1024) throw new ApiError(400, 'Logo must be under 5MB');
+  const ext = path.extname(req.file.originalname) || '.jpg';
+  const key = `employers/${crypto.randomUUID()}${ext}`;
+  await s3.send(new PutObjectCommand({ Bucket: storageBucket, Key: key, Body: req.file.buffer, ContentType: req.file.mimetype }));
+  const url = `${config.APP_URL}/api/v1/media/proxy/${encodeURIComponent(key)}`;
+  res.json(new ApiResponse(200, { url }, 'Logo uploaded'));
+});
+
 // ── Admin: Upload Job Company Logo ───────────────────────────────────────────
 export const uploadJobLogo = asyncHandler(async (req: Request, res: Response) => {
   if (!req.file) throw new ApiError(400, 'No file provided');
@@ -35,18 +84,30 @@ export const uploadJobLogo = asyncHandler(async (req: Request, res: Response) =>
 // ── Admin: Create Job ─────────────────────────────────────────────────────────
 export const createJob = asyncHandler(async (req: Request, res: Response) => {
   const {
-    companyLogo, companyName, jobTitle, description, employmentType, workMode,
+    employerId, companyLogo, companyName, jobTitle, description, employmentType, workMode,
     salaryLPA, address, location, experience, education, requiredSkills,
     vacancyCount, lastDate, hrContact, hrEmail, status,
   } = req.body;
 
-  if (!companyName || !jobTitle || !description || !employmentType || !workMode || !salaryLPA || !location || !experience) {
+  if (!jobTitle || !description || !employmentType || !workMode || !salaryLPA || !location || !experience) {
     throw new ApiError(400, 'Missing required fields');
   }
 
+  // Resolve company name/logo from employer if employerId provided
+  let resolvedName = companyName;
+  let resolvedLogo = companyLogo;
+  if (employerId) {
+    const employer = await prisma.employer.findUnique({ where: { id: employerId } });
+    if (!employer) throw new ApiError(404, 'Employer not found');
+    resolvedName = employer.name;
+    resolvedLogo = employer.logoUrl ?? companyLogo;
+  }
+  if (!resolvedName) throw new ApiError(400, 'Company name is required');
+
   const job = await prisma.job.create({
     data: {
-      companyLogo, companyName, jobTitle, description,
+      employerId: employerId ?? null,
+      companyLogo: resolvedLogo, companyName: resolvedName, jobTitle, description,
       employmentType, workMode, salaryLPA, address, location,
       experience, education, requiredSkills: requiredSkills ?? [],
       vacancyCount: vacancyCount ? Number(vacancyCount) : 1,

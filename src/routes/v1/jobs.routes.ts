@@ -6,10 +6,19 @@ import {
   createJob, listJobsAdmin, listJobs, getJob, updateJob, deleteJob,
   applyJob, getUserApplications, checkApplied, updateApplicationStatus,
   uploadJobLogo, getJobApplicants, uploadResume,
+  createEmployer, listEmployers, getEmployer, updateEmployer, deleteEmployer, uploadEmployerLogo,
 } from '../../controllers/jobs.controller';
 import { optionalAuth } from '../../middleware/auth';
 
 const router = Router();
+
+// ── Employer routes ──────────────────────────────────────────────────────────
+router.get('/employers', adminAuth, listEmployers);
+router.post('/employers', adminAuth, createEmployer);
+router.post('/employers/upload-logo', adminAuth, upload.single('file'), uploadEmployerLogo);
+router.get('/employers/:id', adminAuth, getEmployer);
+router.put('/employers/:id', adminAuth, updateEmployer);
+router.delete('/employers/:id', adminAuth, deleteEmployer);
 
 // Static routes first (must come before /:id)
 router.get('/admin/all', adminAuth, listJobsAdmin);
