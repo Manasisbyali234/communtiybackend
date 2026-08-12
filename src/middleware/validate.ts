@@ -31,7 +31,7 @@ export function validate(schemas: ValidateSchemas) {
           field: e.path.join('.'),
           message: e.message,
         }));
-        throw new ApiError(400, 'Validation failed', errors);
+        return next(new ApiError(400, 'Validation failed', errors));
       }
       next(err);
     }
