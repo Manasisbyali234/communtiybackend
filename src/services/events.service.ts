@@ -67,6 +67,11 @@ export const eventsService = {
       isInterested: userId ? (e.interests?.length > 0) : false,
       myRsvp: e.rsvps?.[0]?.status ?? null,
       userRsvpStatus: e.rsvps?.[0]?.status ?? null,
+      likesCount: e.likesCount ?? 0,
+      commentsCount: e.commentsCount ?? 0,
+      sharesCount: e.sharesCount ?? 0,
+      interestedCount: e.interestedCount ?? 0,
+      rsvpCount: e.rsvpCount ?? 0,
       interests: undefined,
       rsvps: undefined,
     }));

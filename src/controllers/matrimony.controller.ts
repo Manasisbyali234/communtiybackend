@@ -326,25 +326,18 @@ export const getMatches = asyncHandler(async (req: Request, res: Response) => {
   if (!userId) throw new ApiError(401, 'Unauthorized');
 
   const myProfile = await prisma.matrimonyProfile.findUnique({ where: { userId } });
-  if (!myProfile) return res.json(new ApiResponse(200, []));
+  if (!myProfile || myProfile.approvalStatus !== MatrimonyApprovalStatus.APPROVED)
+    return res.json(new ApiResponse(200, []));
 
   const oppositeGender = myProfile.gender === 'MALE' ? 'FEMALE' : myProfile.gender === 'FEMALE' ? 'MALE' : undefined;
-  const myAge = calcAge(new Date(myProfile.dateOfBirth));
 
+  // Broad query — no hard religion/caste/age filters so we always get candidates
   const where: any = { isActive: true, approvalStatus: MatrimonyApprovalStatus.APPROVED, id: { not: myProfile.id } };
   if (oppositeGender) where.gender = oppositeGender;
 
-  if (myProfile.partnerReligion) where.religion = { contains: myProfile.partnerReligion, mode: 'insensitive' };
-  if (myProfile.partnerCaste) where.caste = { contains: myProfile.partnerCaste, mode: 'insensitive' };
-
-  // Only apply age filter if user has set partner age preferences
-  if (myProfile.partnerMinAge || myProfile.partnerMaxAge) {
-    where.dateOfBirth = _dobRange(myProfile.partnerMinAge ?? undefined, myProfile.partnerMaxAge ?? undefined);
-  }
-
   const profiles = await prisma.matrimonyProfile.findMany({
     where,
-    take: 50,
+    take: 100,
     include: { user: { select: { avatarUrl: true } } },
   });
 
