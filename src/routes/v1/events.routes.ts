@@ -11,8 +11,8 @@ const CreateEventSchema = z.object({
   title: z.string().min(3).max(120),
   description: z.string().max(2000).optional(),
   location: z.string().max(200).optional(),
-  startsAt: z.string().datetime(),
-  endsAt: z.string().datetime().optional(),
+  startsAt: z.string().refine(v => !isNaN(Date.parse(v)), { message: 'Invalid date' }),
+  endsAt: z.string().refine(v => !isNaN(Date.parse(v)), { message: 'Invalid date' }).optional(),
   coverUrl: z.string().min(1).optional().or(z.literal('')).transform(v => v || undefined),
   communityId: z.string().cuid().optional().or(z.literal('')).transform(v => v || undefined),
 });
