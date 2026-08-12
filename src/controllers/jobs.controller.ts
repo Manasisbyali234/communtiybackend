@@ -27,6 +27,16 @@ export const listEmployers = asyncHandler(async (_req: Request, res: Response) =
   res.json(new ApiResponse(200, employers.map(({ _count, ...e }) => ({ ...e, jobCount: _count.jobs }))));
 });
 
+// ── Public: List Employers with active job count ──────────────────────────────
+export const listEmployersPublic = asyncHandler(async (_req: Request, res: Response) => {
+  const employers = await prisma.employer.findMany({
+    where: { isActive: true },
+    orderBy: { name: 'asc' },
+    include: { _count: { select: { jobs: { where: { status: 'ACTIVE' } } } } },
+  });
+  res.json(new ApiResponse(200, employers.map(({ _count, ...e }) => ({ ...e, jobCount: _count.jobs }))));
+});
+
 export const getEmployer = asyncHandler(async (req: Request, res: Response) => {
   const employer = await prisma.employer.findUnique({ where: { id: req.params.id } });
   if (!employer) throw new ApiError(404, 'Employer not found');

@@ -6,13 +6,16 @@ import {
   createJob, listJobsAdmin, listJobs, getJob, updateJob, deleteJob,
   applyJob, getUserApplications, checkApplied, updateApplicationStatus,
   uploadJobLogo, getJobApplicants, uploadResume,
-  createEmployer, listEmployers, getEmployer, updateEmployer, deleteEmployer, uploadEmployerLogo,
+  createEmployer, listEmployers, listEmployersPublic, getEmployer, updateEmployer, deleteEmployer, uploadEmployerLogo,
 } from '../../controllers/jobs.controller';
 import { optionalAuth } from '../../middleware/auth';
 
 const router = Router();
 
-// ── Employer routes ──────────────────────────────────────────────────────────
+// ── Public employer listing (no auth) ───────────────────────────────────────────────
+router.get('/employers/public', listEmployersPublic);
+
+// ── Employer routes (admin) ──────────────────────────────────────────────────────────
 router.get('/employers', adminAuth, listEmployers);
 router.post('/employers', adminAuth, createEmployer);
 router.post('/employers/upload-logo', adminAuth, upload.single('file'), uploadEmployerLogo);
