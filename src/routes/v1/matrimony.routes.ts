@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { auth } from '../../middleware/auth';
 import { adminAuth } from '../../middleware/adminAuth';
 import { upload } from '../../middleware/upload';
+import { asyncHandler } from '../../utils/asyncHandler';
 import {
   createProfile, getMyProfile, updateProfile,
   listProfiles, getProfile, getMatches,
@@ -36,6 +37,12 @@ router.post('/like', auth, likeProfile);
 // ── Profile CRUD ──────────────────────────────────────────────────────────────
 router.get('/profiles', auth, listProfiles);
 router.post('/profiles', auth, createProfile);
+router.get('/profiles/by-user/:userId', auth, asyncHandler(async (req, res) => {
+  const { prisma } = await import('../../config/database');
+  const { ApiResponse } = await import('../../utils/ApiResponse');
+  const profile = await prisma.matrimonyProfile.findUnique({ where: { userId: req.params.userId } });
+  res.json(new ApiResponse(200, profile ?? null));
+}));
 router.get('/profiles/:id', auth, getProfile);
 router.put('/profiles/:id', auth, updateProfile);
 
