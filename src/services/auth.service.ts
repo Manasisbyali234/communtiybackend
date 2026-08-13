@@ -76,13 +76,20 @@ export const authService = {
       select: {
         id: true, email: true, username: true, displayName: true,
         role: true, isVerified: true, isActive: true, isBanned: true,
-        banReason: true, banExpiresAt: true, passwordHash: true, avatarUrl: true,
+        banReason: true, banExpiresAt: true, passwordHash: true, avatarUrl: true, deletedAt: true,
       },
     });
 
-    if (!user || !user.isActive) {
-      throw ApiError.unauthorized('Invalid email or password');
+    if (!user) throw ApiError.unauthorized('Invalid email or password');
+    if (user.deletedAt) {
+      const reactivateAfter = new Date(user.deletedAt.getTime() + 90 * 24 * 60 * 60 * 1000);
+      const now = new Date();
+      if (now < reactivateAfter) {
+        const days = Math.ceil((reactivateAfter.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+        throw ApiError.forbidden(`This account has been deleted. You can create a new account after ${days} more day(s) (on ${reactivateAfter.toDateString()}).`);
+      }
     }
+    if (!user.isActive) throw ApiError.unauthorized('Invalid email or password');
     if (user.isBanned) {
       const msg = user.banExpiresAt
         ? `Account suspended until ${user.banExpiresAt.toISOString()}`

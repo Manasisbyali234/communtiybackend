@@ -19,7 +19,8 @@ export const usersController = {
   }),
 
   deleteMe: asyncHandler(async (req: Request, res: Response) => {
-    await usersService.deactivateMe(req.user.id);
+    const { reason } = req.body as { reason?: string };
+    await usersService.deactivateMe(req.user.id, reason);
     res.json(new ApiResponse(200, null, 'Account deactivated'));
   }),
 

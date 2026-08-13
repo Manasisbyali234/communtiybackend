@@ -153,6 +153,7 @@ router.get('/users', asyncHandler(async (req, res) => {
     ...searchWhere(q),
     ...(status === 'active' ? { isActive: true, isBanned: false } : {}),
     ...(status === 'blocked' ? { isBanned: true } : {}),
+    ...(status === 'deleted' ? { deletedAt: { not: null } } : { deletedAt: null }),
     ...(isVerified === 'true' ? { isVerified: true } : {}),
     ...(startDate ? { createdAt: { gte: new Date(startDate) } } : {}),
     ...(endDate ? { createdAt: { ...(startDate ? { gte: new Date(startDate) } : {}), lte: new Date(endDate) } } : {}),
@@ -165,7 +166,7 @@ router.get('/users', asyncHandler(async (req, res) => {
       select: {
         id: true, email: true, username: true, displayName: true, avatarUrl: true,
         role: true, isActive: true, isVerified: true, isBanned: true, banReason: true,
-        village: true, occupation: true, createdAt: true, updatedAt: true,
+        village: true, occupation: true, createdAt: true, updatedAt: true, deletedAt: true, deletionReason: true,
         _count: { select: { posts: true, communityMembers: true, eventRsvps: true } },
       },
     }),
@@ -196,6 +197,29 @@ router.put('/users/:id/unban', asyncHandler(async (req, res) => {
 router.delete('/users/:id', asyncHandler(async (req, res) => {
   await prisma.user.update({ where: { id: req.params['id'] }, data: { deletedAt: new Date() } });
   res.json(new ApiResponse(200, null, 'User deleted'));
+}));
+
+// ── Deleted Accounts (self-deleted with reason) ───────────────────────────────
+router.get('/deleted-accounts', asyncHandler(async (req, res) => {
+  const { skip, take } = paginate(req.query);
+  const [accounts, total] = await Promise.all([
+    prisma.user.findMany({
+      skip, take,
+      where: { deletedAt: { not: null } },
+      orderBy: { deletedAt: 'desc' },
+      select: {
+        id: true, deletedAt: true, deletionReason: true, createdAt: true,
+      },
+    }),
+    prisma.user.count({ where: { deletedAt: { not: null } } }),
+  ]);
+  const now = new Date();
+  const result = accounts.map(a => ({
+    ...a,
+    permanentDeleteAt: new Date(a.deletedAt!.getTime() + 90 * 24 * 60 * 60 * 1000),
+    daysRemaining: Math.max(0, Math.ceil((a.deletedAt!.getTime() + 90 * 24 * 60 * 60 * 1000 - now.getTime()) / (24 * 60 * 60 * 1000))),
+  }));
+  res.json(new ApiResponse(200, { accounts: result, total, skip, take }));
 }));
 
 // ── Profiles ──────────────────────────────────────────────────────────────────
@@ -498,6 +522,42 @@ router.get('/stories', asyncHandler(async (req, res) => {
 router.delete('/stories/:id', asyncHandler(async (req, res) => {
   await prisma.story.delete({ where: { id: req.params['id'] } });
   res.json(new ApiResponse(200, null, 'Story deleted'));
+}));
+
+// ── Matrimony Active Chats (texting indicator) ──────────────────────────
+router.get('/matrimony-chats', asyncHandler(async (_req, res) => {
+  const matches = await prisma.matrimonyMatch.findMany({
+    where: { conversationId: { not: null } },
+    include: {
+      profileA: { select: { displayName: true, userId: true } },
+      profileB: { select: { displayName: true, userId: true } },
+      conversation: {
+        select: {
+          lastMessageAt: true,
+          messages: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: { content: true, createdAt: true, sender: { select: { displayName: true } } },
+          },
+        },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+  const result = matches
+    .filter(m => m.conversation?.lastMessageAt)
+    .map(m => ({
+      matchId: m.id,
+      profileA: m.profileA.displayName,
+      profileB: m.profileB.displayName,
+      lastMessageAt: m.conversation!.lastMessageAt,
+      lastMessage: m.conversation!.messages[0] ?? null,
+      isActiveNow: m.conversation!.lastMessageAt
+        ? (Date.now() - new Date(m.conversation!.lastMessageAt).getTime()) < 5 * 60 * 1000
+        : false,
+    }))
+    .sort((a, b) => new Date(b.lastMessageAt!).getTime() - new Date(a.lastMessageAt!).getTime());
+  res.json(new ApiResponse(200, result));
 }));
 
 // ── Reports ───────────────────────────────────────────────────────────────────
