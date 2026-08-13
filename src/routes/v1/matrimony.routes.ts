@@ -45,5 +45,16 @@ router.get('/profiles/by-user/:userId', auth, asyncHandler(async (req, res) => {
 }));
 router.get('/profiles/:id', auth, getProfile);
 router.put('/profiles/:id', auth, updateProfile);
+router.delete('/profiles/:id', auth, asyncHandler(async (req, res) => {
+  const { prisma } = await import('../../config/database');
+  const { ApiResponse } = await import('../../utils/ApiResponse');
+  const { ApiError } = await import('../../utils/ApiError');
+  const userId = (req as any).user?.id;
+  const profile = await prisma.matrimonyProfile.findUnique({ where: { id: req.params.id }, select: { userId: true } });
+  if (!profile) throw new ApiError(404, 'Profile not found');
+  if (profile.userId !== userId) throw new ApiError(403, 'Forbidden');
+  await prisma.matrimonyProfile.delete({ where: { id: req.params.id } });
+  res.json(new ApiResponse(200, null, 'Profile deleted'));
+}));
 
 export default router;
