@@ -472,40 +472,47 @@ export const respondInterest = asyncHandler(async (req: Request, res: Response) 
   let conversationId: string | null = null;
 
   if (status === 'ACCEPTED' && interest.fromProfile?.userId) {
-    // Check if the other side also sent an interest that is ACCEPTED (mutual)
-    const reverseInterest = await prisma.matrimonyInterest.findUnique({
-      where: { fromProfileId_toProfileId: { fromProfileId: myProfile.id, toProfileId: interest.fromProfileId } },
+    // Check if a like-based match already exists between these two users — reuse its conversation
+    const [pA, pB] = [myProfile.id, interest.fromProfileId].sort();
+    const existingMatch = await (prisma as any).matrimonyMatch.findUnique({
+      where: { profileAId_profileBId: { profileAId: pA, profileBId: pB } },
+      select: { conversationId: true },
     });
 
-    if (reverseInterest?.status === 'ACCEPTED') {
-      // Both sides accepted each other — create private matrimony conversation
-      const conversation = await prisma.conversation.create({
-        data: {
-          isMatrimonyChat: true,
-          participants: { create: [{ userId }, { userId: interest.fromProfile.userId }] },
-        },
-      });
-      conversationId = conversation.id;
+    if (existingMatch?.conversationId) {
+      // Reuse the existing conversation from the like match
+      conversationId = existingMatch.conversationId;
       await prisma.matrimonyInterest.update({ where: { id: interestId }, data: { conversationId } });
-      await prisma.matrimonyInterest.update({ where: { id: reverseInterest.id }, data: { conversationId } });
-      await notificationsService.create({
-        recipientId: interest.fromProfile.userId,
-        type: 'MATRIMONY_INTEREST_ACCEPTED',
-        actorId: userId,
-        entityId: conversation.id,
-        entityType: 'Conversation',
-        body: `${myProfile.displayName} accepted your interest - you can now chat!`,
-      });
     } else {
-      await notificationsService.create({
-        recipientId: interest.fromProfile.userId,
-        type: 'MATRIMONY_INTEREST_ACCEPTED',
-        actorId: userId,
-        entityId: interest.id,
-        entityType: 'MatrimonyInterest',
-        body: `${myProfile.displayName} accepted your matrimony interest`,
+      // Check if the other side also sent an interest that is ACCEPTED (mutual)
+      const reverseInterest = await prisma.matrimonyInterest.findUnique({
+        where: { fromProfileId_toProfileId: { fromProfileId: myProfile.id, toProfileId: interest.fromProfileId } },
       });
+
+      if (reverseInterest?.status === 'ACCEPTED') {
+        // Both sides accepted each other — create private matrimony conversation
+        const conversation = await prisma.conversation.create({
+          data: {
+            isMatrimonyChat: true,
+            participants: { create: [{ userId }, { userId: interest.fromProfile.userId }] },
+          },
+        });
+        conversationId = conversation.id;
+        await prisma.matrimonyInterest.update({ where: { id: interestId }, data: { conversationId } });
+        await prisma.matrimonyInterest.update({ where: { id: reverseInterest.id }, data: { conversationId } });
+      }
     }
+
+    await notificationsService.create({
+      recipientId: interest.fromProfile.userId,
+      type: 'MATRIMONY_INTEREST_ACCEPTED',
+      actorId: userId,
+      entityId: conversationId ?? interest.id,
+      entityType: conversationId ? 'Conversation' : 'MatrimonyInterest',
+      body: conversationId
+        ? `${myProfile.displayName} accepted your interest - you can now chat!`
+        : `${myProfile.displayName} accepted your matrimony interest`,
+    });
   }
 
   res.json(new ApiResponse(200, { ...updated, conversationId }, `Interest ${status.toLowerCase()}`));
@@ -688,18 +695,32 @@ export const likeProfile = asyncHandler(async (req: Request, res: Response) => {
     return res.json(new ApiResponse(200, { matched: true, conversationId: existingMatch.conversationId }, "It's a match!"));
   }
 
-  // Create conversation + match atomically
-  const conversation = await prisma.conversation.create({
-    data: {
-      isMatrimonyChat: true,
-      participants: {
-        create: [{ userId }, { userId: toProfile.userId }],
-      },
+  // Check if an interest-based conversation already exists between these two users
+  const existingInterestConv = await prisma.matrimonyInterest.findFirst({
+    where: {
+      OR: [
+        { fromProfileId: myProfile.id, toProfileId, conversationId: { not: null } },
+        { fromProfileId: toProfileId, toProfileId: myProfile.id, conversationId: { not: null } },
+      ],
     },
+    select: { conversationId: true },
   });
 
+  let conversationId: string;
+  if (existingInterestConv?.conversationId) {
+    conversationId = existingInterestConv.conversationId;
+  } else {
+    const conversation = await prisma.conversation.create({
+      data: {
+        isMatrimonyChat: true,
+        participants: { create: [{ userId }, { userId: toProfile.userId }] },
+      },
+    });
+    conversationId = conversation.id;
+  }
+
   await (prisma as any).matrimonyMatch.create({
-    data: { profileAId: pA, profileBId: pB, conversationId: conversation.id },
+    data: { profileAId: pA, profileBId: pB, conversationId },
   });
 
   await Promise.all([
@@ -707,7 +728,7 @@ export const likeProfile = asyncHandler(async (req: Request, res: Response) => {
       recipientId: userId,
       type: 'MATRIMONY_MATCH' as any,
       actorId: toProfile.userId,
-      entityId: conversation.id,
+      entityId: conversationId,
       entityType: 'Conversation',
       body: `You matched with ${toProfile.displayName}! Start chatting 💍`,
     }),
@@ -715,13 +736,13 @@ export const likeProfile = asyncHandler(async (req: Request, res: Response) => {
       recipientId: toProfile.userId,
       type: 'MATRIMONY_MATCH' as any,
       actorId: userId,
-      entityId: conversation.id,
+      entityId: conversationId,
       entityType: 'Conversation',
       body: `You matched with ${myProfile.displayName}! Start chatting 💍`,
     }),
   ]);
 
-  res.status(201).json(new ApiResponse(201, { matched: true, conversationId: conversation.id }, "It's a match!"));
+  res.status(201).json(new ApiResponse(201, { matched: true, conversationId }, "It's a match!"));
 });
 
 // ── Get My Like-Based Matches ─────────────────────────────────────────────────
