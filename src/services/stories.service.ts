@@ -39,7 +39,7 @@ export const storiesService = {
     return Array.from(grouped.values());
   },
 
-  async getById(storyId: string) {
+  async getById(storyId: string, requesterId?: string) {
     const story = await prisma.story.findUnique({
       where: { id: storyId },
       include: {
@@ -47,7 +47,8 @@ export const storiesService = {
       },
     });
     if (!story) throw ApiError.notFound('Story not found');
-    if (story.expiresAt < new Date()) throw ApiError.notFound('Story has expired');
+    // Allow the author to view their own expired story (e.g. to delete it)
+    if (story.expiresAt < new Date() && story.authorId !== requesterId) throw ApiError.notFound('Story has expired');
     return story;
   },
 
@@ -84,7 +85,7 @@ export const storiesService = {
 
   async delete(storyId: string, userId: string) {
     const story = await prisma.story.findUnique({ where: { id: storyId } });
-    if (!story) throw ApiError.notFound('Story not found');
+    if (!story) return; // Already deleted (e.g. by expiry worker) — treat as success
     if (story.authorId !== userId) throw ApiError.forbidden('You can only delete your own stories');
     await prisma.story.delete({ where: { id: storyId } });
     await redis.del(`story:${storyId}`);

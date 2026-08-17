@@ -6,7 +6,7 @@ import { MediaType } from '@prisma/client';
 
 export const storiesController = {
   getStory: asyncHandler(async (req: Request, res: Response) => {
-    const story = await storiesService.getById(req.params['id'] as string);
+    const story = await storiesService.getById(req.params['id'] as string, req.user.id);
     res.json(new ApiResponse(200, story));
   }),
 
