@@ -9,8 +9,11 @@ const index_1 = require("../config/index");
 function errorHandler(err, req, res, 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 _next) {
+    // Store the real error message so requestLogger can log it instead of pino-http's generic message.
+    const storeMessage = (msg) => { res.locals['errorMessage'] = msg; };
     // ── Known typed ApiError ───────────────────────────────────────────────────
     if (err instanceof ApiError_1.ApiError) {
+        storeMessage(err.message);
         res.status(err.statusCode).json({
             success: false,
             statusCode: err.statusCode,
@@ -25,6 +28,7 @@ _next) {
             field: e.path.join('.'),
             message: e.message,
         }));
+        storeMessage('Validation failed');
         res.status(400).json({
             success: false,
             statusCode: 400,
@@ -39,6 +43,7 @@ _next) {
             const field = Array.isArray(err.meta?.['target'])
                 ? (err.meta?.['target']).join(', ')
                 : 'field';
+            storeMessage(`Duplicate value for unique ${field}`);
             res.status(409).json({
                 success: false,
                 statusCode: 409,
@@ -48,6 +53,7 @@ _next) {
             return;
         }
         if (err.code === 'P2025') {
+            storeMessage('Record not found');
             res.status(404).json({
                 success: false,
                 statusCode: 404,
@@ -58,12 +64,25 @@ _next) {
         }
     }
     // ── Unknown / unexpected error ─────────────────────────────────────────────
-    logger_1.logger.error({ err, url: req.url, method: req.method }, 'Unhandled error');
+    const errMessage = err instanceof Error ? err.message : String(err);
+    const errStack = err instanceof Error ? err.stack : undefined;
+    const awsMeta = err?.$metadata ?? undefined;
+    const awsCode = err?.Code ?? err?.name ?? undefined;
+    storeMessage(`${awsCode ? awsCode + ': ' : ''}${errMessage}`);
+    logger_1.logger.error({ err, url: req.url, method: req.method, errMessage, errStack, awsMeta, awsCode }, 'Unhandled error');
+    console.error('[Unhandled Error]', awsCode ?? '', errMessage);
+    console.error('[Unhandled Error] stack:', errStack);
+    if (awsMeta)
+        console.error('[Unhandled Error] AWS $metadata:', JSON.stringify(awsMeta));
     res.status(500).json({
         success: false,
         statusCode: 500,
-        message: 'Internal server error',
-        errors: index_1.config.NODE_ENV !== 'production' && err instanceof Error ? [err.message] : [],
+        message: index_1.config.NODE_ENV !== 'production' ? errMessage : 'Internal server error',
+        ...(index_1.config.NODE_ENV !== 'production' && {
+            errorCode: awsCode,
+            awsMeta,
+            stack: errStack?.split('\n').slice(0, 6),
+        }),
     });
 }
 //# sourceMappingURL=errorHandler.js.map

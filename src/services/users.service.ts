@@ -2,6 +2,7 @@ import { prisma } from '../config/database';
 import { ApiError } from '../utils/ApiError';
 import { buildCursorArgs, buildCursorPage } from '../utils/pagination';
 import { notificationsService } from './notifications.service';
+import { CommunityMemberStatus } from '@prisma/client';
 export const usersService = {
   async getMe(userId: string) {
     const user = await prisma.user.findUniqueOrThrow({
@@ -9,7 +10,15 @@ export const usersService = {
       select: {
         id: true, email: true, username: true, displayName: true, bio: true,
         avatarUrl: true, bannerUrl: true, coverImage: true, village: true, occupation: true, languages: true, interests: true, role: true, isVerified: true, createdAt: true,
-        _count: { select: { followers: true, following: true, posts: true } },
+        _count: {
+          select: {
+            followers: true,
+            following: true,
+            posts: true,
+            // Do not count rejected or pending community applications as memberships.
+            communityMembers: { where: { status: CommunityMemberStatus.ACTIVE } },
+          },
+        },
       },
     });
     return {
@@ -17,6 +26,7 @@ export const usersService = {
       followersCount: user._count.followers,
       followingCount: user._count.following,
       postsCount: user._count.posts,
+      communitiesCount: user._count.communityMembers,
     };
   },
 

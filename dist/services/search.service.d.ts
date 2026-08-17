@@ -4,7 +4,7 @@ export declare const searchService: {
             id: string;
             username: string;
             displayName: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
             isVerified: boolean;
         }[];
         posts: {
@@ -15,21 +15,21 @@ export declare const searchService: {
                 id: string;
                 username: string;
                 displayName: string;
-                avatarUrl: string | null;
+                avatarUrl: string;
             };
         }[];
         communities: {
             name: string;
             id: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
             slug: string;
             category: string;
             memberCount: number;
         }[];
         events: {
             id: string;
+            location: string;
             title: string;
-            location: string | null;
             startsAt: Date;
             rsvpCount: number;
         }[];
@@ -43,7 +43,7 @@ export declare const searchService: {
         id: string;
         username: string;
         displayName: string;
-        avatarUrl: string | null;
+        avatarUrl: string;
         isVerified: boolean;
     }[]>;
     searchPosts(query: string, userId: string, limit?: number): Promise<({
@@ -51,18 +51,23 @@ export declare const searchService: {
             id: string;
             username: string;
             displayName: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
         };
     } & {
+        status: import(".prisma/client").$Enums.PostStatus;
         id: string;
         createdAt: Date;
         deletedAt: Date | null;
         updatedAt: Date;
+        content: string;
+        mediaType: import(".prisma/client").$Enums.MediaType | null;
         authorId: string;
         communityId: string | null;
-        content: string;
         mediaUrls: string[];
-        mediaType: import(".prisma/client").$Enums.MediaType | null;
+        videoUrl: string | null;
+        videoFileName: string | null;
+        mimeType: string | null;
+        fileSize: number | null;
         likesCount: number;
         commentsCount: number;
         sharesCount: number;
@@ -70,31 +75,38 @@ export declare const searchService: {
         scheduledAt: Date | null;
     })[]>;
     searchCommunities(query: string, limit?: number): Promise<{
+        status: import(".prisma/client").$Enums.CommunityStatus;
         name: string;
         id: string;
         createdAt: Date;
         avatarUrl: string | null;
         bannerUrl: string | null;
         updatedAt: Date;
-        slug: string;
         description: string | null;
+        slug: string;
         category: string;
         isPrivate: boolean;
         memberCount: number;
+        feedPostPrompts: string[];
     }[]>;
     searchEvents(query: string, limit?: number): Promise<{
+        status: import(".prisma/client").$Enums.EventStatus;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        communityId: string | null;
         description: string | null;
+        communityId: string | null;
+        likesCount: number;
+        commentsCount: number;
+        sharesCount: number;
+        location: string | null;
         title: string;
         creatorId: string;
-        location: string | null;
         startsAt: Date;
         endsAt: Date | null;
         coverUrl: string | null;
         rsvpCount: number;
+        interestedCount: number;
     }[]>;
     searchHashtags(query: string, limit?: number): Promise<{
         name: string;

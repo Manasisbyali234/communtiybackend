@@ -64,6 +64,17 @@ export const mediaService = {
     return { id: mediaFile.id, filename: key, url };
   },
 
+  async uploadCommunityImage(file: UploadedFile, uploadedBy: string): Promise<{ id: string; filename: string; url: string }> {
+    if (file.size > MAX_SIZE) throw ApiError.badRequest('File too large. Maximum size is 50MB.');
+    if (!ALLOWED_MIME_TYPES.has(file.mimetype.toLowerCase()) || !file.mimetype.toLowerCase().startsWith('image/')) {
+      throw ApiError.badRequest('Only supported image files can be used for a community.');
+    }
+
+    const extension = path.extname(file.originalname) || '.jpg';
+    const key = `communities/${uploadedBy}/${crypto.randomUUID()}${extension}`;
+    return this._uploadToS3(file, key, uploadedBy);
+  },
+
   async uploadProfilePhoto(file: UploadedFile, uploadedBy: string): Promise<{ id: string; filename: string; url: string }> {
     if (file.size > MAX_SIZE) throw ApiError.badRequest('File too large. Maximum size is 50MB.');
     if (!ALLOWED_MIME_TYPES.has(file.mimetype.toLowerCase())) throw ApiError.badRequest('File type not allowed.');

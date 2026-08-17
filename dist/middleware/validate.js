@@ -27,7 +27,7 @@ function validate(schemas) {
                     field: e.path.join('.'),
                     message: e.message,
                 }));
-                throw new ApiError_1.ApiError(400, 'Validation failed', errors);
+                return next(new ApiError_1.ApiError(400, 'Validation failed', errors));
             }
             next(err);
         }

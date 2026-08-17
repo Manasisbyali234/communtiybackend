@@ -1,7 +1,9 @@
 import { Request, Response } from 'express';
 export declare const storiesController: {
+    getStory: (req: Request, res: Response, next: import("express").NextFunction) => void;
     getFeed: (req: Request, res: Response, next: import("express").NextFunction) => void;
     createStory: (req: Request, res: Response, next: import("express").NextFunction) => void;
+    updateStory: (req: Request, res: Response, next: import("express").NextFunction) => void;
     deleteStory: (req: Request, res: Response, next: import("express").NextFunction) => void;
     viewStory: (req: Request, res: Response, next: import("express").NextFunction) => void;
     getViewers: (req: Request, res: Response, next: import("express").NextFunction) => void;

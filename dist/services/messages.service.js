@@ -5,6 +5,7 @@ const database_1 = require("../config/database");
 const ApiError_1 = require("../utils/ApiError");
 const pagination_1 = require("../utils/pagination");
 const notifications_service_1 = require("./notifications.service");
+const presence_socket_1 = require("../sockets/presence.socket");
 exports.messagesService = {
     async getConversations(userId) {
         const participations = await database_1.prisma.conversationParticipant.findMany({
@@ -24,16 +25,39 @@ exports.messagesService = {
                     },
                 },
             },
-            orderBy: { conversation: { lastMessageAt: 'desc' } },
         });
-        return participations.map((p) => ({
-            ...p.conversation,
-            lastReadAt: p.lastReadAt,
-            otherParticipants: p.conversation.participants
-                .filter((part) => part.userId !== userId)
-                .map((part) => part.user),
-            lastMessage: p.conversation.messages[0] ?? null,
+        // Exclude matrimony-only chats from the main chat screen
+        const filtered = participations.filter((p) => !p.conversation.isMatrimonyChat);
+        const conversations = await Promise.all(filtered.map(async (p) => {
+            const participants = await Promise.all(p.conversation.participants.map(async (part) => ({
+                ...part,
+                user: part.userId === userId ? part.user : { ...part.user, ...(await (0, presence_socket_1.getUserPresence)(part.userId)) },
+            })));
+            const unreadCount = await database_1.prisma.message.count({
+                where: {
+                    conversationId: p.conversationId,
+                    senderId: { not: userId },
+                    deletedForAll: false,
+                    ...(p.lastReadAt ? { createdAt: { gt: p.lastReadAt } } : {}),
+                },
+            });
+            return {
+                ...p.conversation,
+                participants,
+                lastReadAt: p.lastReadAt,
+                unreadCount,
+                otherParticipants: participants
+                    .filter((part) => part.userId !== userId)
+                    .map((part) => part.user),
+                lastMessage: p.conversation.messages[0] ?? null,
+            };
         }));
+        return conversations
+            .sort((a, b) => {
+            const aTime = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : new Date(a.createdAt).getTime();
+            const bTime = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : new Date(b.createdAt).getTime();
+            return bTime - aTime;
+        });
     },
     async getOrCreateConversation(userId, participantId) {
         if (userId === participantId)
@@ -41,23 +65,22 @@ exports.messagesService = {
         const target = await database_1.prisma.user.findUnique({ where: { id: participantId } });
         if (!target)
             throw ApiError_1.ApiError.notFound('User not found');
-        // Look for existing 1:1 conversation (exactly 2 participants)
-        const existing = await database_1.prisma.$queryRaw `
-      SELECT c.id FROM "Conversation" c
-      WHERE c."isGroup" = false
-        AND (
-          SELECT COUNT(*) FROM "ConversationParticipant" cp WHERE cp."conversationId" = c.id
-        ) = 2
-        AND EXISTS (SELECT 1 FROM "ConversationParticipant" cp WHERE cp."conversationId" = c.id AND cp."userId" = ${userId})
-        AND EXISTS (SELECT 1 FROM "ConversationParticipant" cp WHERE cp."conversationId" = c.id AND cp."userId" = ${participantId})
-      LIMIT 1
-    `;
-        if (existing.length > 0) {
-            return database_1.prisma.conversation.findUniqueOrThrow({
-                where: { id: existing[0].id },
-                include: { participants: { include: { user: { select: { id: true, username: true, displayName: true, avatarUrl: true } } } } },
-            });
-        }
+        // Look for existing 1:1 conversation shared by both users
+        const userConvIds = await database_1.prisma.conversationParticipant.findMany({
+            where: { userId, leftAt: null },
+            select: { conversationId: true },
+        });
+        const convIds = userConvIds.map((p) => p.conversationId);
+        const existing = await database_1.prisma.conversation.findFirst({
+            where: {
+                id: { in: convIds },
+                isGroup: false,
+                participants: { some: { userId: participantId, leftAt: null } },
+            },
+            include: { participants: { include: { user: { select: { id: true, username: true, displayName: true, avatarUrl: true } } } } },
+        });
+        if (existing)
+            return existing;
         return database_1.prisma.conversation.create({
             data: {
                 participants: {
@@ -112,13 +135,35 @@ exports.messagesService = {
         for (const p of otherParticipants) {
             await notifications_service_1.notificationsService.create({
                 recipientId: p.userId,
-                type: 'NEW_MESSAGE',
+                type: 'MESSAGE',
                 actorId: senderId,
                 entityId: message.id,
                 entityType: 'Message',
+                body: 'You have a new message.',
             });
         }
         return message;
+    },
+    async getUnreadCount(userId) {
+        const participations = await database_1.prisma.conversationParticipant.findMany({
+            where: { userId, leftAt: null },
+            include: {
+                conversation: {
+                    include: {
+                        messages: {
+                            where: { deletedForAll: false, senderId: { not: userId } },
+                            orderBy: { createdAt: 'desc' },
+                        },
+                    },
+                },
+            },
+        });
+        let count = 0;
+        for (const p of participations) {
+            const unread = p.conversation.messages.filter((m) => !p.lastReadAt || m.createdAt > p.lastReadAt);
+            count += unread.length;
+        }
+        return count;
     },
     async markRead(conversationId, userId) {
         await database_1.prisma.conversationParticipant.update({

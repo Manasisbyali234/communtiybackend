@@ -13,6 +13,7 @@ const CreateCommunitySchema = zod_1.z.object({
     isPrivate: zod_1.z.boolean().default(false),
     avatarUrl: zod_1.z.string().url().optional(),
     bannerUrl: zod_1.z.string().url().optional(),
+    feedPostPrompts: zod_1.z.array(zod_1.z.string().max(200)).optional(),
 });
 const UpdateCommunitySchema = CreateCommunitySchema.partial();
 const UpdateRoleSchema = zod_1.z.object({
@@ -59,5 +60,7 @@ router.put('/:id/rules/:rid', (0, validate_1.validate)({ body: RuleSchema.partia
 router.delete('/:id/rules/:rid', communities_controller_1.communitiesController.deleteRule);
 // ── Posts ─────────────────────────────────────────────────────────────────────
 router.get('/:id/posts', (0, validate_1.validate)({ query: CursorQuerySchema }), communities_controller_1.communitiesController.getPosts);
+// ── My Requests ───────────────────────────────────────────────────────────────
+router.get('/my/requests', communities_controller_1.communitiesController.getMyRequests);
 exports.default = router;
 //# sourceMappingURL=communities.routes.js.map

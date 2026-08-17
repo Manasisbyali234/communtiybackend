@@ -10,10 +10,15 @@ const CreateStorySchema = zod_1.z.object({
     mediaUrl: zod_1.z.string().url(),
     mediaType: zod_1.z.enum(['IMAGE', 'VIDEO']),
 });
+const UpdateStorySchema = CreateStorySchema.partial().refine((data) => data.mediaUrl || data.mediaType, {
+    message: 'Provide a media URL or media type to update',
+});
 const ReplySchema = zod_1.z.object({ content: zod_1.z.string().min(1).max(500) });
 router.use(auth_1.auth);
 router.get('/feed', stories_controller_1.storiesController.getFeed);
+router.get('/:id', stories_controller_1.storiesController.getStory);
 router.post('/', (0, validate_1.validate)({ body: CreateStorySchema }), stories_controller_1.storiesController.createStory);
+router.patch('/:id', (0, validate_1.validate)({ body: UpdateStorySchema }), stories_controller_1.storiesController.updateStory);
 router.delete('/:id', stories_controller_1.storiesController.deleteStory);
 router.post('/:id/view', stories_controller_1.storiesController.viewStory);
 router.get('/:id/viewers', stories_controller_1.storiesController.getViewers);

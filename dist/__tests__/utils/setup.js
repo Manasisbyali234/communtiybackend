@@ -1,4 +1,3 @@
-"use strict";
 // Jest setup file
 // Any global setup like database connections can go here.
 afterAll(async () => {

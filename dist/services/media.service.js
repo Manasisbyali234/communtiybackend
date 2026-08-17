@@ -4,299 +4,231 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.mediaService = void 0;
-const database_1 = require("../config/database");
-const logger_1 = require("../config/logger");
-const ApiError_1 = require("../utils/ApiError");
-const crypto_1 = __importDefault(require("crypto"));
 const path_1 = __importDefault(require("path"));
+const crypto_1 = __importDefault(require("crypto"));
+const client_s3_1 = require("@aws-sdk/client-s3");
+const database_1 = require("../config/database");
+const ApiError_1 = require("../utils/ApiError");
+const storage_1 = require("../config/storage");
+const config_1 = require("../config");
+// Serve images through the backend proxy so S3 bucket doesn't need public access
+const proxyUrl = (key) => `${config_1.config.APP_URL}/api/v1/media/proxy/${encodeURIComponent(key)}`;
+const ALLOWED_MIME_TYPES = new Set([
+    'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+    'video/mp4', 'video/mpeg', 'video/quicktime', 'video/webm',
+    'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp3',
+    'application/pdf', 'text/plain',
+]);
+const MAX_SIZE = 50 * 1024 * 1024;
 exports.mediaService = {
-    /**
-     * Store a file in the database
-     */
     async uploadFile(file, uploadedBy) {
-        try {
-            // Generate unique filename
-            const extension = path_1.default.extname(file.originalname);
-            const filename = `${crypto_1.default.randomUUID()}${extension}`;
-            // Validate file size (e.g., max 50MB)
-            const maxSize = 50 * 1024 * 1024; // 50MB
-            if (file.size > maxSize) {
-                throw ApiError_1.ApiError.badRequest('File too large. Maximum size is 50MB.');
-            }
-            // Validate file type
-            if (!this.isAllowedMimeType(file.mimetype)) {
-                throw ApiError_1.ApiError.badRequest('File type not allowed.');
-            }
-            const mediaFile = await database_1.prisma.mediaFile.create({
-                data: {
-                    filename,
-                    originalName: file.originalname,
-                    mimeType: file.mimetype,
-                    fileSize: file.size,
-                    fileData: file.buffer,
-                    uploadedBy,
-                },
-            });
-            return {
-                id: mediaFile.id,
-                filename: mediaFile.filename,
-                url: `/api/v1/media/${mediaFile.id}`,
-            };
-        }
-        catch (error) {
-            logger_1.logger.error({ error, originalname: file.originalname }, 'Failed to upload file');
-            throw error instanceof ApiError_1.ApiError ? error : ApiError_1.ApiError.internal('Failed to upload file');
-        }
+        if (file.size > MAX_SIZE)
+            throw ApiError_1.ApiError.badRequest('File too large. Maximum size is 50MB.');
+        if (!ALLOWED_MIME_TYPES.has(file.mimetype.toLowerCase()))
+            throw ApiError_1.ApiError.badRequest('File type not allowed.');
+        const extension = path_1.default.extname(file.originalname);
+        const filename = `${crypto_1.default.randomUUID()}${extension}`;
+        const key = `uploads/${filename}`;
+        return this._uploadToS3(file, key, uploadedBy);
     },
-    /**
-     * Upload multiple files
-     */
+    async uploadEventImage(file, uploadedBy) {
+        if (file.size > MAX_SIZE)
+            throw ApiError_1.ApiError.badRequest('File too large. Maximum size is 50MB.');
+        if (!ALLOWED_MIME_TYPES.has(file.mimetype.toLowerCase()))
+            throw ApiError_1.ApiError.badRequest('File type not allowed.');
+        const extension = path_1.default.extname(file.originalname);
+        const filename = `${crypto_1.default.randomUUID()}${extension}`;
+        const key = `events/${filename}`;
+        await storage_1.s3.send(new client_s3_1.PutObjectCommand({
+            Bucket: storage_1.storageBucket,
+            Key: key,
+            Body: file.buffer,
+            ContentType: file.mimetype,
+        }));
+        // Store a relative proxy URL so any client IP resolves it correctly via toAbs()
+        const url = `/api/v1/media/proxy/${encodeURIComponent(key)}`;
+        console.log('[uploadEventImage] S3 key:', key, '| db url:', url);
+        const mediaFile = await database_1.prisma.mediaFile.create({
+            data: { filename: key, originalName: file.originalname, mimeType: file.mimetype, fileSize: file.size, url, uploadedBy },
+        });
+        return { id: mediaFile.id, filename: key, url };
+    },
+    async uploadCommunityImage(file, uploadedBy) {
+        if (file.size > MAX_SIZE)
+            throw ApiError_1.ApiError.badRequest('File too large. Maximum size is 50MB.');
+        if (!ALLOWED_MIME_TYPES.has(file.mimetype.toLowerCase()) || !file.mimetype.toLowerCase().startsWith('image/')) {
+            throw ApiError_1.ApiError.badRequest('Only supported image files can be used for a community.');
+        }
+        const extension = path_1.default.extname(file.originalname) || '.jpg';
+        const key = `communities/${uploadedBy}/${crypto_1.default.randomUUID()}${extension}`;
+        return this._uploadToS3(file, key, uploadedBy);
+    },
+    async uploadProfilePhoto(file, uploadedBy) {
+        if (file.size > MAX_SIZE)
+            throw ApiError_1.ApiError.badRequest('File too large. Maximum size is 50MB.');
+        if (!ALLOWED_MIME_TYPES.has(file.mimetype.toLowerCase()))
+            throw ApiError_1.ApiError.badRequest('File type not allowed.');
+        const extension = path_1.default.extname(file.originalname) || '.jpg';
+        const key = `profile/profile-photo-${uploadedBy}-${Date.now()}${extension}`;
+        return this._uploadProfileToS3(file, key, uploadedBy);
+    },
+    async uploadCoverPhoto(file, uploadedBy) {
+        if (file.size > MAX_SIZE)
+            throw ApiError_1.ApiError.badRequest('File too large. Maximum size is 50MB.');
+        if (!ALLOWED_MIME_TYPES.has(file.mimetype.toLowerCase()))
+            throw ApiError_1.ApiError.badRequest('File type not allowed.');
+        const extension = path_1.default.extname(file.originalname) || '.jpg';
+        const key = `profile/cover-photo-${uploadedBy}-${Date.now()}${extension}`;
+        return this._uploadProfileToS3(file, key, uploadedBy);
+    },
+    async uploadChatFile(file, uploadedBy) {
+        if (file.size > MAX_SIZE)
+            throw ApiError_1.ApiError.badRequest('File too large. Maximum size is 50MB.');
+        const normalizedMime = file.mimetype.toLowerCase();
+        const CHAT_ALLOWED = new Set([
+            'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/heic', 'image/heif',
+            'video/mp4', 'video/mpeg', 'video/quicktime', 'video/webm', 'video/x-msvideo', 'video/x-matroska',
+            'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp3',
+            'application/pdf', 'text/plain', 'text/csv',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.ms-powerpoint',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        ]);
+        if (!CHAT_ALLOWED.has(normalizedMime))
+            throw ApiError_1.ApiError.badRequest('File type not allowed.');
+        const extension = path_1.default.extname(file.originalname) || '';
+        const filename = `${crypto_1.default.randomUUID()}${extension}`;
+        const key = `chat/${filename}`;
+        await storage_1.s3.send(new client_s3_1.PutObjectCommand({
+            Bucket: storage_1.storageBucket,
+            Key: key,
+            Body: file.buffer,
+            ContentType: file.mimetype,
+        }));
+        // Store relative proxy URL so it resolves correctly from any client IP
+        const url = `/api/v1/media/proxy/${encodeURIComponent(key)}`;
+        const mediaFile = await database_1.prisma.mediaFile.create({
+            data: { filename: key, originalName: file.originalname, mimeType: file.mimetype, fileSize: file.size, url, uploadedBy },
+        });
+        return {
+            id: mediaFile.id,
+            filename: key,
+            key,
+            url,
+            originalName: file.originalname,
+            mimeType: file.mimetype,
+            fileSize: file.size,
+        };
+    },
+    async uploadPostImage(file, uploadedBy) {
+        if (file.size > MAX_SIZE)
+            throw ApiError_1.ApiError.badRequest('File too large. Maximum size is 50MB.');
+        if (!ALLOWED_MIME_TYPES.has(file.mimetype.toLowerCase()))
+            throw ApiError_1.ApiError.badRequest('File type not allowed.');
+        const extension = path_1.default.extname(file.originalname) || '.jpg';
+        const key = `feed/post-${uploadedBy}-${Date.now()}${extension}`;
+        return this._uploadToS3(file, key, uploadedBy);
+    },
+    async uploadPostVideo(file, uploadedBy) {
+        const VIDEO_MIME_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm']);
+        const EXECUTABLE_TYPES = new Set(['application/x-msdownload', 'application/x-executable', 'application/x-sh']);
+        if (EXECUTABLE_TYPES.has(file.mimetype.toLowerCase()))
+            throw ApiError_1.ApiError.badRequest('Executable files are not allowed.');
+        if (!VIDEO_MIME_TYPES.has(file.mimetype.toLowerCase()))
+            throw ApiError_1.ApiError.badRequest('Unsupported video format. Allowed: MP4, MOV, AVI, WebM.');
+        if (file.size > MAX_SIZE)
+            throw ApiError_1.ApiError.badRequest('Maximum video size allowed is 50 MB.');
+        const extension = path_1.default.extname(file.originalname) || '.mp4';
+        const filename = `video-${crypto_1.default.randomUUID()}${extension}`;
+        const key = `feed/${filename}`;
+        await storage_1.s3.send(new client_s3_1.PutObjectCommand({
+            Bucket: storage_1.storageBucket,
+            Key: key,
+            Body: file.buffer,
+            ContentType: file.mimetype,
+        }));
+        const url = `/api/v1/media/proxy/${encodeURIComponent(key)}`;
+        const mediaFile = await database_1.prisma.mediaFile.create({
+            data: { filename: key, originalName: file.originalname, mimeType: file.mimetype, fileSize: file.size, url, uploadedBy },
+        });
+        return { id: mediaFile.id, filename: key, url, mimeType: file.mimetype, fileSize: file.size };
+    },
+    // Profile images use a relative proxy path so any client IP can resolve them correctly.
+    // The frontend's toAbs() in authStore prepends the correct base URL at runtime.
+    async _uploadProfileToS3(file, key, uploadedBy) {
+        await storage_1.s3.send(new client_s3_1.PutObjectCommand({
+            Bucket: storage_1.storageBucket,
+            Key: key,
+            Body: file.buffer,
+            ContentType: file.mimetype,
+        }));
+        // Store a relative URL — frontend prepends the correct host via toAbs()
+        const url = `/api/v1/media/proxy/${encodeURIComponent(key)}`;
+        const mediaFile = await database_1.prisma.mediaFile.create({
+            data: { filename: key, originalName: file.originalname, mimeType: file.mimetype, fileSize: file.size, url, uploadedBy },
+        });
+        return { id: mediaFile.id, filename: key, url };
+    },
+    async _uploadToS3(file, key, uploadedBy) {
+        await storage_1.s3.send(new client_s3_1.PutObjectCommand({
+            Bucket: storage_1.storageBucket,
+            Key: key,
+            Body: file.buffer,
+            ContentType: file.mimetype,
+        }));
+        // Store a relative URL so any client IP resolves it correctly via toAbs()
+        const url = `/api/v1/media/proxy/${encodeURIComponent(key)}`;
+        const mediaFile = await database_1.prisma.mediaFile.create({
+            data: { filename: key, originalName: file.originalname, mimeType: file.mimetype, fileSize: file.size, url, uploadedBy },
+        });
+        return { id: mediaFile.id, filename: key, url };
+    },
     async uploadFiles(files, uploadedBy) {
-        try {
-            const results = await Promise.all(files.map(file => this.uploadFile(file, uploadedBy)));
-            return results;
-        }
-        catch (error) {
-            logger_1.logger.error({ error, fileCount: files.length }, 'Failed to upload multiple files');
-            throw error;
-        }
+        return Promise.all(files.map(f => this.uploadFile(f, uploadedBy)));
     },
-    /**
-     * Retrieve a file from the database
-     */
     async getFile(id) {
-        try {
-            const mediaFile = await database_1.prisma.mediaFile.findUnique({
-                where: { id },
-                select: {
-                    fileData: true,
-                    mimeType: true,
-                    filename: true,
-                    originalName: true,
-                },
-            });
-            if (!mediaFile) {
-                return null;
-            }
-            return {
-                buffer: mediaFile.fileData,
-                mimeType: mediaFile.mimeType,
-                filename: mediaFile.filename,
-                originalName: mediaFile.originalName,
-            };
-        }
-        catch (error) {
-            logger_1.logger.error({ error, id }, 'Failed to get file');
-            throw ApiError_1.ApiError.internal('Failed to retrieve file');
-        }
+        const mediaFile = await database_1.prisma.mediaFile.findUnique({
+            where: { id },
+            select: { url: true, mimeType: true, filename: true, originalName: true },
+        });
+        return mediaFile ?? null;
     },
-    /**
-     * Delete a file from the database
-     */
     async deleteFile(id, userId) {
-        try {
-            const whereClause = { id };
-            // If userId provided, ensure user can only delete their own files
-            if (userId) {
-                whereClause.uploadedBy = userId;
-            }
-            const result = await database_1.prisma.mediaFile.deleteMany({
-                where: whereClause,
-            });
-            if (result.count === 0) {
-                throw ApiError_1.ApiError.notFound('File not found or you do not have permission to delete it');
-            }
-        }
-        catch (error) {
-            logger_1.logger.error({ error, id, userId }, 'Failed to delete file');
-            throw error instanceof ApiError_1.ApiError ? error : ApiError_1.ApiError.internal('Failed to delete file');
-        }
+        const where = { id };
+        if (userId)
+            where.uploadedBy = userId;
+        const file = await database_1.prisma.mediaFile.findFirst({ where, select: { id: true, filename: true } });
+        if (!file)
+            throw ApiError_1.ApiError.notFound('File not found or you do not have permission to delete it.');
+        await storage_1.s3.send(new client_s3_1.DeleteObjectCommand({ Bucket: storage_1.storageBucket, Key: file.filename }));
+        await database_1.prisma.mediaFile.delete({ where: { id } });
     },
-    /**
-     * Get file metadata
-     */
     async getFileMetadata(id) {
-        try {
-            const mediaFile = await database_1.prisma.mediaFile.findUnique({
-                where: { id },
-                select: {
-                    id: true,
-                    filename: true,
-                    originalName: true,
-                    mimeType: true,
-                    fileSize: true,
-                    uploadedBy: true,
-                    createdAt: true,
-                },
-            });
-            if (!mediaFile) {
-                return null;
-            }
-            return {
-                ...mediaFile,
-                url: `/api/v1/media/${mediaFile.id}`,
-            };
-        }
-        catch (error) {
-            logger_1.logger.error({ error, id }, 'Failed to get file metadata');
-            throw ApiError_1.ApiError.internal('Failed to get file metadata');
-        }
+        const mediaFile = await database_1.prisma.mediaFile.findUnique({
+            where: { id },
+            select: { id: true, filename: true, originalName: true, mimeType: true, fileSize: true, uploadedBy: true, createdAt: true, url: true },
+        });
+        return mediaFile ?? null;
     },
-    /**
-     * Get user's uploaded files
-     */
-    async getUserFiles(userId, options = {}) {
-        try {
-            const { skip = 0, take = 20, mimeType } = options;
-            const where = { uploadedBy: userId };
-            if (mimeType) {
-                where.mimeType = { startsWith: mimeType };
-            }
-            const [files, total] = await Promise.all([
-                database_1.prisma.mediaFile.findMany({
-                    where,
-                    select: {
-                        id: true,
-                        filename: true,
-                        originalName: true,
-                        mimeType: true,
-                        fileSize: true,
-                        createdAt: true,
-                    },
-                    skip,
-                    take,
-                    orderBy: { createdAt: 'desc' },
-                }),
-                database_1.prisma.mediaFile.count({ where }),
-            ]);
-            return {
-                files: files.map(file => ({
-                    ...file,
-                    url: `/api/v1/media/${file.id}`,
-                })),
-                total,
-            };
-        }
-        catch (error) {
-            logger_1.logger.error({ error, userId }, 'Failed to get user files');
-            throw ApiError_1.ApiError.internal('Failed to get user files');
-        }
+    async getUserFiles(userId, { skip, take, mimeType }) {
+        const where = { uploadedBy: userId };
+        if (mimeType)
+            where.mimeType = { startsWith: mimeType };
+        const [files, total] = await Promise.all([
+            database_1.prisma.mediaFile.findMany({ where, skip, take, orderBy: { createdAt: 'desc' } }),
+            database_1.prisma.mediaFile.count({ where }),
+        ]);
+        return { files, total };
     },
-    /**
-     * Clean up orphaned files (files not referenced by any posts, stories, etc.)
-     */
-    async cleanupOrphanedFiles() {
-        try {
-            // This is a complex query that would need to check references in posts, stories, etc.
-            // For now, we'll just delete files older than 30 days that aren't referenced
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-            // Get files that might be orphaned (older than 30 days)
-            const potentialOrphans = await database_1.prisma.mediaFile.findMany({
-                where: {
-                    createdAt: { lt: thirtyDaysAgo },
-                },
-                select: { id: true, filename: true },
-            });
-            // For each file, check if it's referenced in any content
-            // This is a simplified check - in a real app you'd check all tables that reference media
-            const orphanedFiles = [];
-            for (const file of potentialOrphans) {
-                const referencedInPosts = await database_1.prisma.post.count({
-                    where: {
-                        mediaUrls: { has: `/api/v1/media/${file.id}` },
-                    },
-                });
-                const referencedInStories = await database_1.prisma.story.count({
-                    where: {
-                        mediaUrl: `/api/v1/media/${file.id}`,
-                    },
-                });
-                if (referencedInPosts === 0 && referencedInStories === 0) {
-                    orphanedFiles.push(file.id);
-                }
-            }
-            // Delete orphaned files
-            if (orphanedFiles.length > 0) {
-                const result = await database_1.prisma.mediaFile.deleteMany({
-                    where: { id: { in: orphanedFiles } },
-                });
-                logger_1.logger.info({ deletedCount: result.count }, 'Cleaned up orphaned media files');
-                return { deletedCount: result.count };
-            }
-            return { deletedCount: 0 };
-        }
-        catch (error) {
-            logger_1.logger.error({ error }, 'Failed to cleanup orphaned files');
-            throw ApiError_1.ApiError.internal('Failed to cleanup orphaned files');
-        }
-    },
-    /**
-     * Get storage statistics
-     */
     async getStorageStats() {
-        try {
-            const [totalFiles, totalSizeResult, filesByType] = await Promise.all([
-                database_1.prisma.mediaFile.count(),
-                database_1.prisma.mediaFile.aggregate({
-                    _sum: { fileSize: true },
-                    _avg: { fileSize: true },
-                }),
-                database_1.prisma.$queryRaw `
-          SELECT "mimeType", COUNT(*) as count, SUM("fileSize") as "totalSize"
-          FROM "MediaFile"
-          GROUP BY "mimeType"
-          ORDER BY "totalSize" DESC
-        `,
-            ]);
-            return {
-                totalFiles,
-                totalSize: totalSizeResult._sum.fileSize || 0,
-                averageSize: Math.round(totalSizeResult._avg.fileSize || 0),
-                filesByType: filesByType.map(item => ({
-                    mimeType: item.mimeType,
-                    count: Number(item.count),
-                    totalSize: Number(item.totalSize),
-                })),
-            };
-        }
-        catch (error) {
-            logger_1.logger.error({ error }, 'Failed to get storage statistics');
-            throw ApiError_1.ApiError.internal('Failed to get storage statistics');
-        }
-    },
-    /**
-     * Check if mime type is allowed
-     */
-    isAllowedMimeType(mimeType) {
-        const allowedTypes = [
-            // Images
-            'image/jpeg',
-            'image/jpg',
-            'image/png',
-            'image/gif',
-            'image/webp',
-            'image/svg+xml',
-            // Videos
-            'video/mp4',
-            'video/mpeg',
-            'video/quicktime',
-            'video/webm',
-            // Audio
-            'audio/mpeg',
-            'audio/wav',
-            'audio/ogg',
-            'audio/mp3',
-            // Documents
-            'application/pdf',
-            'text/plain',
-            'application/json',
-        ];
-        return allowedTypes.includes(mimeType.toLowerCase());
+        const stats = await database_1.prisma.mediaFile.aggregate({
+            _count: { id: true },
+            _sum: { fileSize: true },
+        });
+        return { totalFiles: stats._count.id, totalSize: stats._sum.fileSize ?? 0 };
     },
 };
-// Cleanup orphaned files every 24 hours
-setInterval(() => {
-    exports.mediaService.cleanupOrphanedFiles().catch(err => logger_1.logger.error({ err }, 'Background media cleanup failed'));
-}, 24 * 60 * 60 * 1000);
 //# sourceMappingURL=media.service.js.map

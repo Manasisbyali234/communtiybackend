@@ -60,7 +60,7 @@ exports.postsController = {
     }),
     getComments: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         const { cursor, limit, parentId } = req.query;
-        const result = await comments_service_1.commentsService.getComments(req.params['id'], parentId ?? null, cursor, limit ? parseInt(limit) : 20);
+        const result = await comments_service_1.commentsService.getComments(req.params['id'], parentId ?? null, req.user.id, cursor, limit ? parseInt(limit) : 20);
         res.json(new ApiResponse_1.ApiResponse(200, result));
     }),
     addComment: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
@@ -78,8 +78,8 @@ exports.postsController = {
         res.json(new ApiResponse_1.ApiResponse(200, null, 'Comment deleted'));
     }),
     likeComment: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-        await comments_service_1.commentsService.likeComment(req.params['cid'], req.user.id);
-        res.json(new ApiResponse_1.ApiResponse(200, null, 'Comment liked'));
+        const result = await comments_service_1.commentsService.likeComment(req.params['cid'], req.user.id);
+        res.json(new ApiResponse_1.ApiResponse(200, result, result.isLiked ? 'Comment liked' : 'Comment unliked'));
     }),
 };
 //# sourceMappingURL=posts.controller.js.map

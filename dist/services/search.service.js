@@ -41,6 +41,7 @@ exports.searchService = {
                         deletedAt: null,
                         isDraft: false,
                         authorId: { notIn: blockedIds },
+                        OR: [{ communityId: null }, { status: 'APPROVED' }],
                     },
                     select: {
                         id: true, content: true, createdAt: true,
@@ -51,6 +52,7 @@ exports.searchService = {
                 }),
                 database_1.prisma.community.findMany({
                     where: {
+                        status: 'APPROVED',
                         OR: [
                             { name: { contains: q, mode: 'insensitive' } },
                             { description: { contains: q, mode: 'insensitive' } },
@@ -103,6 +105,7 @@ exports.searchService = {
                 deletedAt: null,
                 isDraft: false,
                 authorId: { notIn: blockedIds },
+                OR: [{ communityId: null }, { status: 'APPROVED' }],
             },
             include: { author: { select: { id: true, username: true, displayName: true, avatarUrl: true } } },
             take: limit,
@@ -111,7 +114,7 @@ exports.searchService = {
     },
     async searchCommunities(query, limit = 20) {
         return database_1.prisma.community.findMany({
-            where: { OR: [{ name: { contains: query, mode: 'insensitive' } }, { description: { contains: query, mode: 'insensitive' } }] },
+            where: { status: 'APPROVED', OR: [{ name: { contains: query, mode: 'insensitive' } }, { description: { contains: query, mode: 'insensitive' } }] },
             take: limit,
             orderBy: { memberCount: 'desc' },
         });

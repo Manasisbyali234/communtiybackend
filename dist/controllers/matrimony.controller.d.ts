@@ -1,0 +1,21 @@
+import { Request, Response } from 'express';
+export declare const createProfile: (req: Request, res: Response, next: import("express").NextFunction) => void;
+export declare const getMyProfile: (req: Request, res: Response, next: import("express").NextFunction) => void;
+export declare const updateProfile: (req: Request, res: Response, next: import("express").NextFunction) => void;
+export declare const listProfiles: (req: Request, res: Response, next: import("express").NextFunction) => void;
+export declare const getProfile: (req: Request, res: Response, next: import("express").NextFunction) => void;
+export declare const getMatches: (req: Request, res: Response, next: import("express").NextFunction) => void;
+export declare const expressInterest: (req: Request, res: Response, next: import("express").NextFunction) => void;
+export declare const getInterests: (req: Request, res: Response, next: import("express").NextFunction) => void;
+export declare const respondInterest: (req: Request, res: Response, next: import("express").NextFunction) => void;
+export declare const uploadPhoto: (req: Request, res: Response, next: import("express").NextFunction) => void;
+export declare const deletePhoto: (req: Request, res: Response, next: import("express").NextFunction) => void;
+export declare const approveProfile: (req: Request, res: Response, next: import("express").NextFunction) => void;
+export declare const rejectProfile: (req: Request, res: Response, next: import("express").NextFunction) => void;
+export declare const listProfilesAdmin: (req: Request, res: Response, next: import("express").NextFunction) => void;
+export declare const deleteProfile: (req: Request, res: Response, next: import("express").NextFunction) => void;
+export declare const verifyProfile: (req: Request, res: Response, next: import("express").NextFunction) => void;
+export declare const likeProfile: (req: Request, res: Response, next: import("express").NextFunction) => void;
+export declare const getMyLikeMatches: (req: Request, res: Response, next: import("express").NextFunction) => void;
+export declare const getMatchChat: (req: Request, res: Response, next: import("express").NextFunction) => void;
+//# sourceMappingURL=matrimony.controller.d.ts.map

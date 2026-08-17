@@ -5,6 +5,10 @@ const stories_service_1 = require("../services/stories.service");
 const ApiResponse_1 = require("../utils/ApiResponse");
 const asyncHandler_1 = require("../utils/asyncHandler");
 exports.storiesController = {
+    getStory: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const story = await stories_service_1.storiesService.getById(req.params['id']);
+        res.json(new ApiResponse_1.ApiResponse(200, story));
+    }),
     getFeed: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         const result = await stories_service_1.storiesService.getFeed(req.user.id);
         res.json(new ApiResponse_1.ApiResponse(200, result));
@@ -13,6 +17,10 @@ exports.storiesController = {
         const { mediaUrl, mediaType } = req.body;
         const story = await stories_service_1.storiesService.create(req.user.id, mediaUrl, mediaType);
         res.status(201).json(new ApiResponse_1.ApiResponse(201, story, 'Story created'));
+    }),
+    updateStory: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const story = await stories_service_1.storiesService.update(req.params['id'], req.user.id, req.body);
+        res.json(new ApiResponse_1.ApiResponse(200, story, 'Story updated'));
     }),
     deleteStory: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         await stories_service_1.storiesService.delete(req.params['id'], req.user.id);

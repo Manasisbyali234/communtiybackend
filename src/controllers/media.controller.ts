@@ -21,6 +21,15 @@ export const mediaController = {
     res.json(new ApiResponse(200, result, 'Event image uploaded successfully'));
   }),
 
+  uploadCommunityImage: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) throw ApiError.badRequest('No file provided');
+    const result = await mediaService.uploadCommunityImage(
+      { buffer: req.file.buffer, originalname: req.file.originalname, mimetype: req.file.mimetype, size: req.file.size },
+      req.user.id
+    );
+    res.json(new ApiResponse(200, result, 'Community image uploaded successfully'));
+  }),
+
   uploadProfilePhoto: asyncHandler(async (req: Request, res: Response) => {
     if (!req.file) throw ApiError.badRequest('No file provided');
     const result = await mediaService.uploadProfilePhoto(

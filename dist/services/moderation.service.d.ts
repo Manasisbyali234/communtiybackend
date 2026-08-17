@@ -9,8 +9,8 @@ export declare const moderationService: {
         status: import(".prisma/client").$Enums.ReportStatus;
         id: string;
         createdAt: Date;
-        postId: string | null;
         reason: import(".prisma/client").$Enums.ReportReason;
+        postId: string | null;
         details: string | null;
         reviewedAt: Date | null;
         reviewedBy: string | null;
@@ -26,7 +26,7 @@ export declare const moderationService: {
         post: {
             id: string;
             content: string;
-        } | null;
+        };
         reporter: {
             id: string;
             username: string;
@@ -34,13 +34,13 @@ export declare const moderationService: {
         reportedUser: {
             id: string;
             username: string;
-        } | null;
+        };
     } & {
         status: import(".prisma/client").$Enums.ReportStatus;
         id: string;
         createdAt: Date;
-        postId: string | null;
         reason: import(".prisma/client").$Enums.ReportReason;
+        postId: string | null;
         details: string | null;
         reviewedAt: Date | null;
         reviewedBy: string | null;
@@ -52,8 +52,8 @@ export declare const moderationService: {
         status: import(".prisma/client").$Enums.ReportStatus;
         id: string;
         createdAt: Date;
-        postId: string | null;
         reason: import(".prisma/client").$Enums.ReportReason;
+        postId: string | null;
         details: string | null;
         reviewedAt: Date | null;
         reviewedBy: string | null;

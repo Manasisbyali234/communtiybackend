@@ -4,13 +4,13 @@ import { prisma } from '../config/database';
 import { redis } from '../config/redis';
 
 // Mock dependencies
-jest.mock('../../config/database', () => ({
+jest.mock('../config/database', () => ({
   prisma: {
     $queryRaw: jest.fn(),
   },
 }));
 
-jest.mock('../../config/redis', () => ({
+jest.mock('../config/redis', () => ({
   redis: {
     ping: jest.fn(),
   },

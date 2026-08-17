@@ -5,14 +5,14 @@ export declare const storiesService: {
             id: string;
             username: string;
             displayName: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
         };
         stories: ({
             author: {
                 id: string;
                 username: string;
                 displayName: string;
-                avatarUrl: string | null;
+                avatarUrl: string;
             };
             views: {
                 viewerId: string;
@@ -21,29 +21,66 @@ export declare const storiesService: {
             id: string;
             expiresAt: Date;
             createdAt: Date;
-            authorId: string;
-            mediaType: import(".prisma/client").$Enums.MediaType;
-            likesCount: number;
             mediaUrl: string;
+            mediaType: import(".prisma/client").$Enums.MediaType;
+            authorId: string;
+            likesCount: number;
             viewCount: number;
         })[];
         hasUnseen: boolean;
     }[]>;
-    create(authorId: string, mediaUrl: string, mediaType: MediaType): Promise<{
+    getById(storyId: string): Promise<{
         author: {
             id: string;
             username: string;
             displayName: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
         };
     } & {
         id: string;
         expiresAt: Date;
         createdAt: Date;
-        authorId: string;
-        mediaType: import(".prisma/client").$Enums.MediaType;
-        likesCount: number;
         mediaUrl: string;
+        mediaType: import(".prisma/client").$Enums.MediaType;
+        authorId: string;
+        likesCount: number;
+        viewCount: number;
+    }>;
+    create(authorId: string, mediaUrl: string, mediaType: MediaType): Promise<{
+        author: {
+            id: string;
+            username: string;
+            displayName: string;
+            avatarUrl: string;
+        };
+    } & {
+        id: string;
+        expiresAt: Date;
+        createdAt: Date;
+        mediaUrl: string;
+        mediaType: import(".prisma/client").$Enums.MediaType;
+        authorId: string;
+        likesCount: number;
+        viewCount: number;
+    }>;
+    update(storyId: string, userId: string, data: {
+        mediaUrl?: string;
+        mediaType?: MediaType;
+    }): Promise<{
+        author: {
+            id: string;
+            username: string;
+            displayName: string;
+            avatarUrl: string;
+        };
+    } & {
+        id: string;
+        expiresAt: Date;
+        createdAt: Date;
+        mediaUrl: string;
+        mediaType: import(".prisma/client").$Enums.MediaType;
+        authorId: string;
+        likesCount: number;
         viewCount: number;
     }>;
     delete(storyId: string, userId: string): Promise<void>;
@@ -65,28 +102,28 @@ export declare const storiesService: {
             id: string;
             username: string;
             displayName: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
         };
     } & {
         id: string;
         createdAt: Date;
+        senderId: string;
         content: string;
         storyId: string;
-        senderId: string;
     }>;
     getStoryReplies(storyId: string, userId: string): Promise<({
         sender: {
             id: string;
             username: string;
             displayName: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
         };
     } & {
         id: string;
         createdAt: Date;
+        senderId: string;
         content: string;
         storyId: string;
-        senderId: string;
     })[]>;
 };
 //# sourceMappingURL=stories.service.d.ts.map

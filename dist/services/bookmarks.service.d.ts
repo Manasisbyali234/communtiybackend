@@ -6,23 +6,28 @@ export declare const bookmarksService: {
             name: string;
             id: string;
             slug: string;
-        } | null;
+        };
         author: {
             id: string;
             username: string;
             displayName: string;
-            avatarUrl: string | null;
+            avatarUrl: string;
         };
     } & {
+        status: import(".prisma/client").$Enums.PostStatus;
         id: string;
         createdAt: Date;
         deletedAt: Date | null;
         updatedAt: Date;
+        content: string;
+        mediaType: import(".prisma/client").$Enums.MediaType | null;
         authorId: string;
         communityId: string | null;
-        content: string;
         mediaUrls: string[];
-        mediaType: import(".prisma/client").$Enums.MediaType | null;
+        videoUrl: string | null;
+        videoFileName: string | null;
+        mimeType: string | null;
+        fileSize: number | null;
         likesCount: number;
         commentsCount: number;
         sharesCount: number;

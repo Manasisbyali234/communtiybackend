@@ -21,6 +21,11 @@ export const storiesController = {
     res.status(201).json(new ApiResponse(201, story, 'Story created'));
   }),
 
+  updateStory: asyncHandler(async (req: Request, res: Response) => {
+    const story = await storiesService.update(req.params['id'] as string, req.user.id, req.body as { mediaUrl?: string; mediaType?: MediaType });
+    res.json(new ApiResponse(200, story, 'Story updated'));
+  }),
+
   deleteStory: asyncHandler(async (req: Request, res: Response) => {
     await storiesService.delete(req.params['id'] as string, req.user.id);
     res.json(new ApiResponse(200, null, 'Story deleted'));

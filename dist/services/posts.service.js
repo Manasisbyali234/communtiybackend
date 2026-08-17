@@ -1,16 +1,17 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.postsService = void 0;
+exports.postsService = exports.POST_SELECT = void 0;
 const database_1 = require("../config/database");
 const pagination_1 = require("../utils/pagination");
 const ApiError_1 = require("../utils/ApiError");
 const blocks_service_1 = require("./blocks.service");
 const bullmq_1 = require("../config/bullmq");
 const notifications_service_1 = require("./notifications.service");
-const POST_SELECT = {
+exports.POST_SELECT = {
     id: true, content: true, mediaUrls: true, mediaType: true,
+    videoUrl: true, videoFileName: true, mimeType: true, fileSize: true,
     likesCount: true, commentsCount: true, sharesCount: true,
-    isDraft: true, scheduledAt: true,
+    isDraft: true, scheduledAt: true, status: true,
     createdAt: true, updatedAt: true,
     author: { select: { id: true, username: true, displayName: true, avatarUrl: true } },
     community: { select: { id: true, name: true, slug: true, avatarUrl: true } },
@@ -60,7 +61,7 @@ exports.postsService = {
         const blockedIds = await blocks_service_1.blocksService.getBlockedIds(userId);
         const [follows, memberships] = await Promise.all([
             database_1.prisma.follow.findMany({ where: { followerId: userId }, select: { followingId: true } }),
-            database_1.prisma.communityMember.findMany({ where: { userId }, select: { communityId: true } }),
+            database_1.prisma.communityMember.findMany({ where: { userId, status: 'ACTIVE' }, select: { communityId: true } }),
         ]);
         const followingIds = follows.map((f) => f.followingId).filter((id) => !blockedIds.includes(id));
         const communityIds = memberships.map((m) => m.communityId);
@@ -72,28 +73,77 @@ exports.postsService = {
                 isDraft: false,
                 scheduledAt: null,
                 OR: [
-                    { authorId: { in: followingIds } },
-                    { communityId: { in: communityIds } },
+                    { authorId: { in: followingIds }, communityId: null },
+                    // Public community posts remain visible to active members. Private
+                    // community posts are visible only to the creator's followers (or
+                    // to the community's admin, handled by the author/admin clauses).
+                    {
+                        community: {
+                            is: {
+                                isPrivate: false,
+                                members: { some: { userId, status: 'ACTIVE' } },
+                            },
+                        },
+                        communityId: { in: communityIds },
+                        status: 'APPROVED',
+                    },
+                    {
+                        community: {
+                            is: {
+                                isPrivate: true,
+                                members: {
+                                    some: {
+                                        role: 'ADMIN',
+                                        status: 'ACTIVE',
+                                        user: { followers: { some: { followerId: userId } } },
+                                    },
+                                },
+                            },
+                        },
+                        status: 'APPROVED',
+                    },
+                    {
+                        community: {
+                            is: {
+                                isPrivate: true,
+                                members: { some: { userId, role: 'ADMIN', status: 'ACTIVE' } },
+                            },
+                        },
+                        status: 'APPROVED',
+                    },
                     { authorId: userId },
                 ],
-                authorId: { notIn: blockedIds },
+                NOT: { authorId: { in: blockedIds } },
             },
-            select: POST_SELECT,
+            select: exports.POST_SELECT,
             orderBy: { createdAt: 'desc' },
         });
         return (0, pagination_1.buildCursorPage)(posts, limit);
     },
     async createPost(authorId, data) {
         if (data.communityId) {
+            const community = await database_1.prisma.community.findUnique({ where: { id: data.communityId } });
+            if (!community)
+                throw ApiError_1.ApiError.notFound('Community not found');
+            if (community.status !== 'APPROVED')
+                throw ApiError_1.ApiError.forbidden('This community is not yet approved. You cannot post until the admin approves it.');
             const member = await database_1.prisma.communityMember.findUnique({
                 where: { communityId_userId: { communityId: data.communityId, userId: authorId } },
             });
             if (!member)
                 throw ApiError_1.ApiError.forbidden('You must be a member of this community to post');
         }
+        const { tags: _tags, mediaType, ...postData } = data;
+        const postStatus = 'APPROVED';
         const post = await database_1.prisma.post.create({
-            data: { authorId, ...data },
-            select: POST_SELECT,
+            data: {
+                authorId,
+                ...postData,
+                content: postData.content ?? '',
+                ...(mediaType ? { mediaType: mediaType } : {}),
+                status: postStatus,
+            },
+            select: exports.POST_SELECT,
         });
         // Sync hashtags (only if publishing now)
         if (!data.isDraft && !data.scheduledAt) {
@@ -104,16 +154,45 @@ exports.postsService = {
             const delay = data.scheduledAt.getTime() - Date.now();
             if (delay > 0) {
                 const queue = (0, bullmq_1.getQueue)(bullmq_1.QUEUE_NAMES.SCHEDULED_POST);
-                await queue.add('publish', { postId: post.id }, { delay, jobId: `post:${post.id}` });
+                await queue.add('publish', { postId: post.id }, { delay });
             }
         }
         return post;
     },
     async getPost(postId, viewerId) {
+        const accessPost = await database_1.prisma.post.findFirst({
+            where: { id: postId, deletedAt: null, OR: [{ communityId: null }, { status: 'APPROVED' }] },
+            select: { authorId: true, communityId: true },
+        });
+        if (!accessPost)
+            throw ApiError_1.ApiError.notFound('Post not found');
+        if (accessPost.communityId && viewerId && accessPost.authorId !== viewerId) {
+            const privateCommunity = await database_1.prisma.community.findFirst({
+                where: {
+                    id: accessPost.communityId,
+                    isPrivate: true,
+                    NOT: {
+                        members: { some: { userId: viewerId, role: 'ADMIN', status: 'ACTIVE' } },
+                    },
+                },
+                select: {
+                    members: {
+                        where: {
+                            role: 'ADMIN',
+                            user: { followers: { some: { followerId: viewerId } } },
+                        },
+                        select: { id: true },
+                    },
+                },
+            });
+            if (privateCommunity && privateCommunity.members.length === 0) {
+                throw ApiError_1.ApiError.forbidden('This private community post is only visible to the creator\'s followers');
+            }
+        }
         const post = await database_1.prisma.post.findFirst({
-            where: { id: postId, deletedAt: null },
+            where: { id: postId, deletedAt: null, OR: [{ communityId: null }, { status: 'APPROVED' }] },
             select: {
-                ...POST_SELECT,
+                ...exports.POST_SELECT,
                 ...(viewerId ? {
                     likes: { where: { userId: viewerId }, select: { id: true } },
                     bookmarks: { where: { userId: viewerId }, select: { id: true } },
@@ -133,7 +212,7 @@ exports.postsService = {
         const updated = await database_1.prisma.post.update({
             where: { id: postId },
             data,
-            select: POST_SELECT,
+            select: exports.POST_SELECT,
         });
         if (data.content)
             await syncHashtags(postId, data.content);
@@ -156,7 +235,7 @@ exports.postsService = {
         const updated = await database_1.prisma.post.update({
             where: { id: postId },
             data: { isDraft: false, scheduledAt: null },
-            select: POST_SELECT,
+            select: exports.POST_SELECT,
         });
         await syncHashtags(postId, post.content);
         return updated;
@@ -166,7 +245,7 @@ exports.postsService = {
         const posts = await database_1.prisma.post.findMany({
             ...args,
             where: { authorId: userId, isDraft: true, deletedAt: null },
-            select: POST_SELECT,
+            select: exports.POST_SELECT,
             orderBy: { updatedAt: 'desc' },
         });
         return (0, pagination_1.buildCursorPage)(posts, limit);
@@ -183,12 +262,14 @@ exports.postsService = {
             database_1.prisma.post.update({ where: { id: postId }, data: { likesCount: { increment: 1 } } }),
         ]);
         if (post.authorId !== userId) {
+            const actor = await database_1.prisma.user.findUnique({ where: { id: userId }, select: { displayName: true } });
             await notifications_service_1.notificationsService.create({
                 recipientId: post.authorId,
-                type: 'NEW_LIKE',
+                type: 'LIKE',
                 actorId: userId,
                 entityId: postId,
                 entityType: 'Post',
+                body: `${actor?.displayName ?? 'Someone'} liked your post.`,
             });
         }
     },
@@ -213,8 +294,9 @@ exports.postsService = {
                 scheduledAt: null,
                 createdAt: { gte: since },
                 authorId: { notIn: blockedIds },
+                OR: [{ communityId: null }, { status: 'APPROVED' }],
             },
-            select: POST_SELECT,
+            select: exports.POST_SELECT,
             orderBy: [{ likesCount: 'desc' }, { commentsCount: 'desc' }, { createdAt: 'desc' }],
         });
         return (0, pagination_1.buildCursorPage)(posts, limit);

@@ -6,6 +6,12 @@ export declare const notificationsService: {
         limit?: number;
         unreadOnly?: boolean;
     }): Promise<import("../utils/pagination").CursorPage<{
+        actor: {
+            id: string;
+            username: string;
+            displayName: string;
+            avatarUrl: string;
+        };
         type: import(".prisma/client").$Enums.NotificationType;
         id: string;
         createdAt: Date;

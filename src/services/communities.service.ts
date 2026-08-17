@@ -40,7 +40,9 @@ export const communitiesService = {
 
   async create(creatorId: string, data: { name: string; description?: string; category: string; isPrivate?: boolean; avatarUrl?: string; bannerUrl?: string; feedPostPrompts?: string[] }) {
     let slug = slugify(data.name);
-    const existing = await prisma.community.findUnique({ where: { slug } });
+    const existing = await prisma.community.findFirst({
+      where: { slug, status: { in: ['PENDING', 'APPROVED'] } },
+    });
     if (existing) throw ApiError.conflict('A community with this name already exists');
 
     const community = await prisma.community.create({

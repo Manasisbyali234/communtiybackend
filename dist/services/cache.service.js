@@ -27,8 +27,6 @@ exports.cacheService = {
      */
     async get(key) {
         try {
-            // Clean up expired entries
-            await this.cleanup();
             const entry = await database_1.prisma.cacheEntry.findUnique({
                 where: { key },
             });
@@ -57,15 +55,11 @@ exports.cacheService = {
      */
     async delete(key) {
         try {
-            await database_1.prisma.cacheEntry.delete({
+            await database_1.prisma.cacheEntry.deleteMany({
                 where: { key },
             });
         }
         catch (error) {
-            // Ignore if key doesn't exist
-            if (error && typeof error === 'object' && 'code' in error && error.code === 'P2025') {
-                return;
-            }
             logger_1.logger.error({ error, key }, 'Failed to delete cache entry');
             throw error;
         }

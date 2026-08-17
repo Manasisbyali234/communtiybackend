@@ -69,6 +69,19 @@ export const storiesService = {
     return story;
   },
 
+  async update(storyId: string, userId: string, data: { mediaUrl?: string; mediaType?: MediaType }) {
+    const story = await prisma.story.findUnique({ where: { id: storyId } });
+    if (!story) throw ApiError.notFound('Story not found');
+    if (story.expiresAt <= new Date()) throw ApiError.notFound('Story has expired');
+    if (story.authorId !== userId) throw ApiError.forbidden('You can only edit your own stories');
+
+    return prisma.story.update({
+      where: { id: storyId },
+      data,
+      include: { author: { select: { id: true, username: true, displayName: true, avatarUrl: true } } },
+    });
+  },
+
   async delete(storyId: string, userId: string) {
     const story = await prisma.story.findUnique({ where: { id: storyId } });
     if (!story) throw ApiError.notFound('Story not found');
@@ -82,14 +95,15 @@ export const storiesService = {
     if (!story) throw ApiError.notFound('Story not found');
     if (story.expiresAt < new Date()) throw ApiError.notFound('Story has expired');
 
-    await prisma.$transaction([
-      prisma.storyView.upsert({
-        where: { storyId_viewerId: { storyId, viewerId } },
-        create: { storyId, viewerId },
-        update: {},
-      }),
-      prisma.story.update({ where: { id: storyId }, data: { viewCount: { increment: 1 } } }),
-    ]);
+    // Count a viewer once. The former upsert incremented the counter every
+    // time the same person reopened a story.
+    const created = await prisma.storyView.createMany({
+      data: [{ storyId, viewerId }],
+      skipDuplicates: true,
+    });
+    if (created.count > 0) {
+      await prisma.story.update({ where: { id: storyId }, data: { viewCount: { increment: 1 } } });
+    }
   },
 
   async getViewers(storyId: string, userId: string) {

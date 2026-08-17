@@ -13,7 +13,7 @@ const envSchema = zod_1.z.object({
     API_VERSION: zod_1.z.string().default('v1'),
     APP_URL: zod_1.z.string().url().default('http://localhost:3000'),
     DATABASE_URL: zod_1.z.string().url(),
-    REDIS_URL: zod_1.z.string().url(),
+    REDIS_URL: zod_1.z.string().url().optional(),
     JWT_ACCESS_SECRET: zod_1.z.string().min(32),
     JWT_REFRESH_SECRET: zod_1.z.string().min(32),
     JWT_ACCESS_EXPIRY: zod_1.z.string().default('15m'),
@@ -26,12 +26,11 @@ const envSchema = zod_1.z.object({
     APPLE_TEAM_ID: zod_1.z.string().optional(),
     APPLE_KEY_ID: zod_1.z.string().optional(),
     APPLE_PRIVATE_KEY: zod_1.z.string().optional(),
-    // Storage
-    STORAGE_ENDPOINT: zod_1.z.string().url().optional(),
-    STORAGE_REGION: zod_1.z.string().default('auto'),
+    // Storage (optional — local disk storage is used when not set)
+    STORAGE_REGION: zod_1.z.string().optional(),
     STORAGE_ACCESS_KEY: zod_1.z.string().optional(),
     STORAGE_SECRET_KEY: zod_1.z.string().optional(),
-    STORAGE_BUCKET: zod_1.z.string().default('community-media'),
+    STORAGE_BUCKET: zod_1.z.string().optional(),
     STORAGE_PUBLIC_URL: zod_1.z.string().url().optional(),
     // Email
     SMTP_HOST: zod_1.z.string().optional(),

@@ -18,7 +18,8 @@ exports.usersController = {
         res.json(new ApiResponse_1.ApiResponse(200, user, 'Profile updated'));
     }),
     deleteMe: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-        await users_service_1.usersService.deactivateMe(req.user.id);
+        const { reason } = req.body;
+        await users_service_1.usersService.deactivateMe(req.user.id, reason);
         res.json(new ApiResponse_1.ApiResponse(200, null, 'Account deactivated'));
     }),
     updatePushToken: (0, asyncHandler_1.asyncHandler)(async (req, res) => {

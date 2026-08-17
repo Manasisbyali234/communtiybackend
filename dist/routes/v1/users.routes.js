@@ -5,12 +5,18 @@ const zod_1 = require("zod");
 const users_controller_1 = require("../../controllers/users.controller");
 const auth_1 = require("../../middleware/auth");
 const validate_1 = require("../../middleware/validate");
+const jobs_controller_1 = require("../../controllers/jobs.controller");
 const router = (0, express_1.Router)();
 const UpdateMeSchema = zod_1.z.object({
     displayName: zod_1.z.string().min(1).max(60).optional(),
     bio: zod_1.z.string().max(500).optional(),
     avatarUrl: zod_1.z.string().url().optional(),
     bannerUrl: zod_1.z.string().url().optional(),
+    coverImage: zod_1.z.string().url().nullable().optional(),
+    village: zod_1.z.string().max(50).optional(),
+    occupation: zod_1.z.string().max(50).optional(),
+    languages: zod_1.z.string().max(100).optional(),
+    interests: zod_1.z.string().max(100).optional(),
 });
 const CursorQuerySchema = zod_1.z.object({
     cursor: zod_1.z.string().optional(),
@@ -59,5 +65,6 @@ router.delete('/:id/follow', users_controller_1.usersController.unfollow);
 router.get('/:id/followers', (0, validate_1.validate)({ query: CursorQuerySchema }), users_controller_1.usersController.getFollowers);
 router.get('/:id/following', (0, validate_1.validate)({ query: CursorQuerySchema }), users_controller_1.usersController.getFollowing);
 router.get('/:id/posts', (0, validate_1.validate)({ query: CursorQuerySchema }), users_controller_1.usersController.getUserPosts);
+router.get('/:id/job-applications', jobs_controller_1.getUserApplications);
 exports.default = router;
 //# sourceMappingURL=users.routes.js.map

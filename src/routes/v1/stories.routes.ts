@@ -10,6 +10,9 @@ const CreateStorySchema = z.object({
   mediaUrl: z.string().url(),
   mediaType: z.enum(['IMAGE', 'VIDEO']),
 });
+const UpdateStorySchema = CreateStorySchema.partial().refine((data) => data.mediaUrl || data.mediaType, {
+  message: 'Provide a media URL or media type to update',
+});
 
 const ReplySchema = z.object({ content: z.string().min(1).max(500) });
 
@@ -18,6 +21,7 @@ router.use(auth);
 router.get('/feed', storiesController.getFeed);
 router.get('/:id', storiesController.getStory);
 router.post('/', validate({ body: CreateStorySchema }), storiesController.createStory);
+router.patch('/:id', validate({ body: UpdateStorySchema }), storiesController.updateStory);
 router.delete('/:id', storiesController.deleteStory);
 router.post('/:id/view', storiesController.viewStory);
 router.get('/:id/viewers', storiesController.getViewers);
