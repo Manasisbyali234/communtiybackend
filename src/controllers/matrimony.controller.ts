@@ -261,20 +261,28 @@ export const listProfiles = asyncHandler(async (req: Request, res: Response) => 
     include: { user: { select: { avatarUrl: true } } },
   });
 
-  // Build interest map in one query
+  // Build outgoing action maps in one query each so status is always scoped to
+  // the requesting profile, never to a like/interest received from somebody else.
   let interestMap: Record<string, string> = {};
+  let likedProfileIds = new Set<string>();
   if (myProfile) {
     const interests = await prisma.matrimonyInterest.findMany({
       where: { fromProfileId: myProfile.id },
       select: { toProfileId: true, status: true },
     });
     interestMap = Object.fromEntries(interests.map(i => [i.toProfileId, i.status]));
+    const likes = await (prisma as any).matrimonyLike.findMany({
+      where: { fromProfileId: myProfile.id },
+      select: { toProfileId: true },
+    });
+    likedProfileIds = new Set(likes.map((like: { toProfileId: string }) => like.toProfileId));
   }
 
   const result = profiles.map(p => ({
     ..._withAge(p),
     hasExpressedInterest: !!interestMap[p.id],
     interestStatus: interestMap[p.id] ?? null,
+    hasLiked: likedProfileIds.has(p.id),
   }));
 
   res.json(new ApiResponse(200, result));
@@ -305,6 +313,7 @@ export const getProfile = asyncHandler(async (req: Request, res: Response) => {
 
   let hasExpressedInterest = false;
   let interestStatus = null;
+  let hasLiked = false;
 
   if (userId) {
     const myProfile = await prisma.matrimonyProfile.findUnique({ where: { userId }, select: { id: true } });
@@ -314,10 +323,14 @@ export const getProfile = asyncHandler(async (req: Request, res: Response) => {
       });
       hasExpressedInterest = !!interest;
       interestStatus = interest?.status ?? null;
+      hasLiked = !!await (prisma as any).matrimonyLike.findUnique({
+        where: { fromProfileId_toProfileId: { fromProfileId: myProfile.id, toProfileId: profile.id } },
+        select: { id: true },
+      });
     }
   }
 
-  res.json(new ApiResponse(200, { ..._withAge(profile), hasExpressedInterest, interestStatus }));
+  res.json(new ApiResponse(200, { ..._withAge(profile), hasExpressedInterest, interestStatus, hasLiked }));
 });
 
 // ── Best Matches ──────────────────────────────────────────────────────────────
