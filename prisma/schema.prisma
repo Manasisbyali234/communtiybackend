@@ -190,6 +190,10 @@ model User {
   profileShares      ProfileShare[]
   jobApplications    JobApplication[]
   matrimonyProfile   MatrimonyProfile?
+  businessListings   BusinessListing[]
+  helpRequests       CommunityHelpRequest[]
+  helpOffers         CommunityHelpOffer[]
+  communityStories   CommunityProfileStory[]
 
   @@index([email])
   @@index([username])
@@ -933,6 +937,115 @@ model JobApplication {
   @@unique([userId, jobId])
   @@index([jobId])
   @@index([userId])
+}
+
+// ─── Community directory modules ────────────────────────────────────────────
+// These records back the Business Directory, Community Help, and Our People
+// screens. Status is stored as a string to keep the public/admin workflow
+// explicit and forward-compatible (PENDING, APPROVED, REJECTED, etc.).
+model BusinessListing {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessName     String
+  category         String
+  description      String   @default("")
+  productsServices String   @default("")
+  location         String
+  address          String?
+  website          String?
+  whatsapp         String?
+  phone            String?
+  email            String?
+  logoUrl          String?
+  coverUrl         String?
+  photos           String[] @default([])
+  offers           String?
+  status           String   @default("PENDING")
+  rejectionReason  String?
+  approvedAt       DateTime?
+  rejectedAt       DateTime?
+  isVerified       Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  reviews          BusinessReview[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([category])
+}
+
+model BusinessReview {
+  id         String          @id @default(cuid())
+  businessId String
+  business   BusinessListing @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  userId     String
+  reviewerName String
+  rating     Int
+  comment    String
+  createdAt  DateTime @default(now())
+
+  @@index([businessId])
+  @@unique([businessId, userId])
+}
+
+model CommunityHelpRequest {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category          String
+  title             String
+  description       String
+  location          String
+  urgency           String   @default("NORMAL")
+  contactPreference String   @default("IN_APP")
+  status            String   @default("PENDING")
+  rejectionReason   String?
+  resolvedAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  helpers           CommunityHelpOffer[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([category])
+}
+
+model CommunityHelpOffer {
+  id        String               @id @default(cuid())
+  requestId String
+  request   CommunityHelpRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message   String?
+  createdAt DateTime             @default(now())
+
+  @@unique([requestId, userId])
+  @@index([requestId])
+}
+
+model CommunityProfileStory {
+  id               String   @id @default(cuid())
+  authorId         String
+  author           User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  title            String
+  personName       String
+  profession       String   @default("")
+  location         String   @default("")
+  category         String
+  shortDescription String
+  fullStory        String
+  featuredImage    String
+  additionalImages String[] @default([])
+  isFeatured       Boolean  @default(false)
+  status           String   @default("DRAFT")
+  publishedAt      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([status])
+  @@index([category])
+  @@index([publishedAt(sort: Desc)])
 }
 
 // ─── Matrimony ────────────────────────────────────────────────────────────────

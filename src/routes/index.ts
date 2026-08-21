@@ -22,6 +22,7 @@ import marketRatesRoutes from './v1/marketRates.routes';
 import referralRoutes from './v1/referral.routes';
 import jobsRoutes from './v1/jobs.routes';
 import matrimonyRoutes from './v1/matrimony.routes';
+import directoryRoutes from './v1/directory.routes';
 
 const router = Router();
 
@@ -67,6 +68,9 @@ router.use('/jobs', jobsRoutes);
 
 // Matrimony
 router.use('/matrimony', matrimonyRoutes);
+
+// Business Directory, Community Help, and Our People
+router.use('/', directoryRoutes);
 
 // Admin & Moderation
 router.use('/moderation', moderationRoutes);

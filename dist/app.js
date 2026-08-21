@@ -36,8 +36,20 @@ function buildApp() {
         },
     }));
     const corsOrigins = index_1.config.CORS_ORIGINS.trim();
+    const allowedOrigins = corsOrigins === '*' ? null : corsOrigins.split(',').map((o) => o.trim());
     app.use((0, cors_1.default)({
-        origin: corsOrigins === '*' ? true : corsOrigins.split(',').map((o) => o.trim()),
+        origin: (origin, callback) => {
+            if (!origin)
+                return callback(null, true);
+            if (!allowedOrigins)
+                return callback(null, true);
+            if (allowedOrigins.includes(origin))
+                return callback(null, true);
+            // Allow any local network subnet (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+            if (/^https?:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/.test(origin))
+                return callback(null, true);
+            callback(new Error(`CORS: origin ${origin} not allowed`));
+        },
         credentials: true,
     }));
     app.use((0, compression_1.default)());

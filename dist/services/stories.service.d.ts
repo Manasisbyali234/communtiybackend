@@ -29,7 +29,7 @@ export declare const storiesService: {
         })[];
         hasUnseen: boolean;
     }[]>;
-    getById(storyId: string): Promise<{
+    getById(storyId: string, requesterId?: string): Promise<{
         author: {
             id: string;
             username: string;

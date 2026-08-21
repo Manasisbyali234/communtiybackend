@@ -243,19 +243,27 @@ exports.listProfiles = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         take: Number(take),
         include: { user: { select: { avatarUrl: true } } },
     });
-    // Build interest map in one query
+    // Build outgoing action maps in one query each so status is always scoped to
+    // the requesting profile, never to a like/interest received from somebody else.
     let interestMap = {};
+    let likedProfileIds = new Set();
     if (myProfile) {
         const interests = await database_1.prisma.matrimonyInterest.findMany({
             where: { fromProfileId: myProfile.id },
             select: { toProfileId: true, status: true },
         });
         interestMap = Object.fromEntries(interests.map(i => [i.toProfileId, i.status]));
+        const likes = await database_1.prisma.matrimonyLike.findMany({
+            where: { fromProfileId: myProfile.id },
+            select: { toProfileId: true },
+        });
+        likedProfileIds = new Set(likes.map((like) => like.toProfileId));
     }
     const result = profiles.map(p => ({
         ..._withAge(p),
         hasExpressedInterest: !!interestMap[p.id],
         interestStatus: interestMap[p.id] ?? null,
+        hasLiked: likedProfileIds.has(p.id),
     }));
     res.json(new ApiResponse_1.ApiResponse(200, result));
 });
@@ -283,6 +291,7 @@ exports.getProfile = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     }
     let hasExpressedInterest = false;
     let interestStatus = null;
+    let hasLiked = false;
     if (userId) {
         const myProfile = await database_1.prisma.matrimonyProfile.findUnique({ where: { userId }, select: { id: true } });
         if (myProfile) {
@@ -291,9 +300,13 @@ exports.getProfile = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
             });
             hasExpressedInterest = !!interest;
             interestStatus = interest?.status ?? null;
+            hasLiked = !!await database_1.prisma.matrimonyLike.findUnique({
+                where: { fromProfileId_toProfileId: { fromProfileId: myProfile.id, toProfileId: profile.id } },
+                select: { id: true },
+            });
         }
     }
-    res.json(new ApiResponse_1.ApiResponse(200, { ..._withAge(profile), hasExpressedInterest, interestStatus }));
+    res.json(new ApiResponse_1.ApiResponse(200, { ..._withAge(profile), hasExpressedInterest, interestStatus, hasLiked }));
 });
 // ── Best Matches ──────────────────────────────────────────────────────────────
 exports.getMatches = (0, asyncHandler_1.asyncHandler)(async (req, res) => {

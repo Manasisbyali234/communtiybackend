@@ -27,6 +27,7 @@ const marketRates_routes_1 = __importDefault(require("./v1/marketRates.routes"))
 const referral_routes_1 = __importDefault(require("./v1/referral.routes"));
 const jobs_routes_1 = __importDefault(require("./v1/jobs.routes"));
 const matrimony_routes_1 = __importDefault(require("./v1/matrimony.routes"));
+const directory_routes_1 = __importDefault(require("./v1/directory.routes"));
 const router = (0, express_1.Router)();
 // Health — public (no auth required)
 router.use('/health', health_routes_1.default);
@@ -59,6 +60,8 @@ router.use('/referral', referral_routes_1.default);
 router.use('/jobs', jobs_routes_1.default);
 // Matrimony
 router.use('/matrimony', matrimony_routes_1.default);
+// Business Directory, Community Help, and Our People
+router.use('/', directory_routes_1.default);
 // Admin & Moderation
 router.use('/moderation', moderation_routes_1.default);
 router.use('/admin', admin_routes_1.default);

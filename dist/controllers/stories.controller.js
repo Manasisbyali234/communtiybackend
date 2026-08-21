@@ -6,7 +6,7 @@ const ApiResponse_1 = require("../utils/ApiResponse");
 const asyncHandler_1 = require("../utils/asyncHandler");
 exports.storiesController = {
     getStory: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-        const story = await stories_service_1.storiesService.getById(req.params['id']);
+        const story = await stories_service_1.storiesService.getById(req.params['id'], req.user.id);
         res.json(new ApiResponse_1.ApiResponse(200, story));
     }),
     getFeed: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
