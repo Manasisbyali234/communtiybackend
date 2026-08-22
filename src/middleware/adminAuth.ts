@@ -1,7 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
 import { prisma } from '../config/database';
 import { ApiError } from '../utils/ApiError';
 import { logger } from '../config/logger';
+import { config } from '../config';
+import { JwtPayload } from '../types';
 
 export async function adminAuth(req: Request, _res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
@@ -13,16 +16,24 @@ export async function adminAuth(req: Request, _res: Response, next: NextFunction
     const session = await prisma.adminSession.findUnique({
       where: { token },
     });
-    if (!session) {
-      logger.warn({ url: req.originalUrl }, 'Admin session token was not found');
-      return next(ApiError.unauthorized('Invalid or expired admin session'));
+    if (session && session.expiresAt >= new Date()) {
+      (req as any).adminId = session.adminId;
+      return next();
     }
-    if (session.expiresAt < new Date()) {
+    if (session?.expiresAt < new Date()) {
       logger.warn({ url: req.originalUrl, expiresAt: session.expiresAt }, 'Admin session has expired');
-      return next(ApiError.unauthorized('Invalid or expired admin session'));
     }
-    // Attach adminId to request for downstream use
-    (req as any).adminId = session.adminId;
+
+    // Native clients already hold the normal user JWT. Accept it only when it
+    // belongs to an active administrator, avoiding a second token race.
+    const payload = jwt.verify(token, config.JWT_ACCESS_SECRET) as JwtPayload;
+    if (payload.role !== 'ADMIN') return next(ApiError.forbidden('Administrator access required'));
+    const admin = await prisma.user.findFirst({
+      where: { id: payload.sub, role: 'ADMIN', isActive: true, isBanned: false, deletedAt: null },
+      select: { id: true },
+    });
+    if (!admin) return next(ApiError.forbidden('Administrator access required'));
+    (req as any).adminId = admin.id;
     next();
   } catch (error) {
     logger.error({ error, url: req.originalUrl }, 'Admin session validation failed');
