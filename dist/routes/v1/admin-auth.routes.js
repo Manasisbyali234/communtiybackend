@@ -5,32 +5,42 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const crypto_1 = __importDefault(require("crypto"));
-const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const database_1 = require("../../config/database");
 const asyncHandler_1 = require("../../utils/asyncHandler");
 const ApiResponse_1 = require("../../utils/ApiResponse");
 const ApiError_1 = require("../../utils/ApiError");
 const adminAuth_1 = require("../../middleware/adminAuth");
+const auth_1 = require("../../middleware/auth");
+const auth_service_1 = require("../../services/auth.service");
 const router = (0, express_1.Router)();
+// POST /api/v1/admin-auth/session
+// Exchange an already verified admin access token for an admin-panel session.
+router.post('/session', auth_1.auth, (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const admin = await database_1.prisma.user.findFirst({
+        where: { id: req.user.id, role: 'ADMIN', deletedAt: null, isBanned: false, isActive: true },
+        select: { id: true, email: true, username: true, displayName: true, avatarUrl: true, role: true },
+    });
+    if (!admin)
+        throw ApiError_1.ApiError.forbidden('Administrator access required');
+    const token = crypto_1.default.randomBytes(48).toString('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await database_1.prisma.adminSession.create({ data: { adminId: admin.id, token, expiresAt } });
+    res.json(new ApiResponse_1.ApiResponse(200, { token, expiresAt, admin }, 'Admin session created'));
+}));
 // POST /api/v1/admin-auth/login
 router.post('/login', (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password)
         throw ApiError_1.ApiError.badRequest('Email and password required');
-    const admin = await database_1.prisma.user.findFirst({
-        where: { email, role: 'ADMIN', deletedAt: null, isBanned: false },
-        select: { id: true, email: true, username: true, displayName: true, avatarUrl: true, passwordHash: true, role: true },
-    });
-    if (!admin || !admin.passwordHash)
-        throw ApiError_1.ApiError.unauthorized('Invalid admin credentials');
-    const valid = await bcryptjs_1.default.compare(password, admin.passwordHash);
-    if (!valid)
+    // Keep this legacy endpoint aligned with the main login flow, including
+    // password verification and account-status checks.
+    const { user: admin } = await auth_service_1.authService.login(email, password);
+    if (admin.role !== 'ADMIN')
         throw ApiError_1.ApiError.unauthorized('Invalid admin credentials');
     const token = crypto_1.default.randomBytes(48).toString('hex');
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
     await database_1.prisma.adminSession.create({ data: { adminId: admin.id, token, expiresAt } });
-    const { passwordHash: _, ...adminData } = admin;
-    res.json(new ApiResponse_1.ApiResponse(200, { token, expiresAt, admin: adminData }, 'Admin login successful'));
+    res.json(new ApiResponse_1.ApiResponse(200, { token, expiresAt, admin }, 'Admin login successful'));
 }));
 // POST /api/v1/admin-auth/logout
 router.post('/logout', adminAuth_1.adminAuth, (0, asyncHandler_1.asyncHandler)(async (req, res) => {
