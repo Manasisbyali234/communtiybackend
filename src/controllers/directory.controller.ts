@@ -11,6 +11,20 @@ const adminOnly = (req: Request) => {
 const businessInclude = { user: { select: { id: true, displayName: true, avatarUrl: true } }, reviews: true } as const;
 const helpInclude = { user: { select: { id: true, displayName: true, avatarUrl: true, phone: true } }, helpers: { include: { user: { select: { id: true, displayName: true, avatarUrl: true, phone: true } } } } } as const;
 const mapBusiness = (b: any) => ({ ...b, ownerName: b.user.displayName, ownerAvatarUrl: b.user.avatarUrl, submittedAt: b.createdAt, reviewCount: b.reviews.length, averageRating: b.reviews.length ? b.reviews.reduce((sum: number, r: any) => sum + r.rating, 0) / b.reviews.length : 0 });
+const businessFields = (body: Record<string, unknown>) => ({
+  businessName: String(body.businessName ?? '').trim(),
+  category: String(body.category ?? '').trim(),
+  description: String(body.description ?? '').trim(),
+  productsServices: String(body.productsServices ?? '').trim(),
+  location: String(body.location ?? '').trim(),
+  address: body.address ? String(body.address).trim() : null,
+  website: body.website ? String(body.website).trim() : null,
+  whatsapp: body.whatsapp ? String(body.whatsapp).trim() : null,
+  phone: body.phone ? String(body.phone).trim() : null,
+  email: body.email ? String(body.email).trim() : null,
+  offers: body.offers ? String(body.offers).trim() : null,
+  photos: Array.isArray(body.photos) ? body.photos.filter((photo): photo is string => typeof photo === 'string') : [],
+});
 const mapHelp = (r: any) => ({ ...r, requesterName: r.user.displayName, requesterAvatarUrl: r.user.avatarUrl, requesterPhone: r.user.phone, requesterLocation: r.location, helpers: r.helpers.map((h: any) => ({ id: h.id, requestId: h.requestId, helperId: h.userId, helperName: h.user.displayName, helperAvatarUrl: h.user.avatarUrl, helperPhone: h.user.phone, message: h.message, offeredAt: h.createdAt })), reports: [] });
 
 export const listBusinesses = asyncHandler(async (req: Request, res: Response) => {
@@ -24,8 +38,8 @@ export const getBusiness = asyncHandler(async (req: Request, res: Response) => {
   res.json(new ApiResponse(200, mapBusiness(business)));
 });
 export const myBusinesses = asyncHandler(async (req: Request, res: Response) => { const rows = await prisma.businessListing.findMany({ where: { userId: req.user.id }, include: businessInclude, orderBy: { createdAt: 'desc' } }); res.json(new ApiResponse(200, rows.map(mapBusiness))); });
-export const createBusiness = asyncHandler(async (req: Request, res: Response) => { const row = await prisma.businessListing.create({ data: { ...req.body, userId: req.user.id, status: 'PENDING', photos: req.body.photos ?? [] }, include: businessInclude }); res.status(201).json(new ApiResponse(201, mapBusiness(row))); });
-export const updateBusiness = asyncHandler(async (req: Request, res: Response) => { const current = await prisma.businessListing.findUnique({ where: { id: req.params.id } }); if (!current || (current.userId !== req.user.id && req.user.role !== 'ADMIN')) throw new ApiError(404, 'Business not found'); const row = await prisma.businessListing.update({ where: { id: current.id }, data: { ...req.body, status: req.user.role === 'ADMIN' ? current.status : 'PENDING', rejectionReason: null }, include: businessInclude }); res.json(new ApiResponse(200, mapBusiness(row))); });
+export const createBusiness = asyncHandler(async (req: Request, res: Response) => { const row = await prisma.businessListing.create({ data: { ...businessFields(req.body), userId: req.user.id, status: 'PENDING' }, include: businessInclude }); res.status(201).json(new ApiResponse(201, mapBusiness(row))); });
+export const updateBusiness = asyncHandler(async (req: Request, res: Response) => { const current = await prisma.businessListing.findUnique({ where: { id: req.params.id } }); if (!current || (current.userId !== req.user.id && req.user.role !== 'ADMIN')) throw new ApiError(404, 'Business not found'); const row = await prisma.businessListing.update({ where: { id: current.id }, data: { ...businessFields(req.body), status: req.user.role === 'ADMIN' ? current.status : 'PENDING', rejectionReason: null }, include: businessInclude }); res.json(new ApiResponse(200, mapBusiness(row))); });
 export const deleteBusiness = asyncHandler(async (req: Request, res: Response) => { const current = await prisma.businessListing.findUnique({ where: { id: req.params.id } }); if (!current || (current.userId !== req.user.id && req.user.role !== 'ADMIN')) throw new ApiError(404, 'Business not found'); await prisma.businessListing.delete({ where: { id: current.id } }); res.json(new ApiResponse(200, null)); });
 export const contactBusiness = asyncHandler(async (req: Request, res: Response) => { const b = await prisma.businessListing.findUnique({ where: { id: req.params.id } }); if (!b || b.status !== 'APPROVED') throw new ApiError(404, 'Business not found'); await notificationsService.create({ recipientId: b.userId, actorId: req.user.id, entityId: b.id, entityType: 'BUSINESS', type: 'MESSAGE', body: 'sent a contact request for your business.' }); res.json(new ApiResponse(200, null, 'Business owner notified')); });
 export const addBusinessReview = asyncHandler(async (req: Request, res: Response) => { const business = await prisma.businessListing.findUnique({ where: { id: req.params.id } }); if (!business || business.status !== 'APPROVED') throw new ApiError(404, 'Business not found'); const rating = Number(req.body.rating); if (!Number.isInteger(rating) || rating < 1 || rating > 5 || !String(req.body.comment ?? '').trim()) throw new ApiError(400, 'A rating from 1 to 5 and a review comment are required'); const review = await prisma.businessReview.upsert({ where: { businessId_userId: { businessId: business.id, userId: req.user.id } }, create: { businessId: business.id, userId: req.user.id, reviewerName: req.user.email, rating, comment: String(req.body.comment).trim() }, update: { rating, comment: String(req.body.comment).trim() } }); res.status(201).json(new ApiResponse(201, review)); });
