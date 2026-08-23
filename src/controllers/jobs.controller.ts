@@ -253,6 +253,13 @@ export const applyJob = asyncHandler(async (req: Request, res: Response) => {
   const job = await prisma.job.findUnique({ where: { id: jobId } });
   if (!job) throw new ApiError(404, 'Job not found');
   if (job.status !== 'ACTIVE') throw new ApiError(400, 'Job is not accepting applications');
+  if (job.lastDate) {
+    const deadline = new Date(job.lastDate);
+    deadline.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (deadline < today) throw new ApiError(400, 'Application deadline has passed');
+  }
 
   const existing = await prisma.jobApplication.findUnique({
     where: { userId_jobId: { userId, jobId } },
