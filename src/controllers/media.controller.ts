@@ -48,6 +48,15 @@ export const mediaController = {
     res.json(new ApiResponse(200, result, 'Cover photo uploaded successfully'));
   }),
 
+  uploadBusinessImage: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) throw ApiError.badRequest('No file provided');
+    const result = await mediaService.uploadBusinessImage(
+      { buffer: req.file.buffer, originalname: req.file.originalname, mimetype: req.file.mimetype, size: req.file.size },
+      req.user.id
+    );
+    res.json(new ApiResponse(200, result, 'Business image uploaded successfully'));
+  }),
+
   uploadPostImage: asyncHandler(async (req: Request, res: Response) => {
     if (!req.file) throw ApiError.badRequest('No file provided');
     const result = await mediaService.uploadPostImage(

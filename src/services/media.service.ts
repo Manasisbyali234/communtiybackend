@@ -142,6 +142,16 @@ export const mediaService = {
     };
   },
 
+  async uploadBusinessImage(file: UploadedFile, uploadedBy: string): Promise<{ id: string; filename: string; url: string }> {
+    if (file.size > MAX_SIZE) throw ApiError.badRequest('File too large. Maximum size is 50MB.');
+    if (!ALLOWED_MIME_TYPES.has(file.mimetype.toLowerCase()) || !file.mimetype.toLowerCase().startsWith('image/'))
+      throw ApiError.badRequest('Only image files are allowed for business photos.');
+
+    const extension = path.extname(file.originalname) || '.jpg';
+    const key = `business/${uploadedBy}/${crypto.randomUUID()}${extension}`;
+    return this._uploadToS3(file, key, uploadedBy);
+  },
+
   async uploadPostImage(file: UploadedFile, uploadedBy: string): Promise<{ id: string; filename: string; url: string }> {
     if (file.size > MAX_SIZE) throw ApiError.badRequest('File too large. Maximum size is 50MB.');
     if (!ALLOWED_MIME_TYPES.has(file.mimetype.toLowerCase())) throw ApiError.badRequest('File type not allowed.');

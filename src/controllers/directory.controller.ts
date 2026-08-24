@@ -23,6 +23,7 @@ const businessFields = (body: Record<string, unknown>) => ({
   phone: body.phone ? String(body.phone).trim() : null,
   email: body.email ? String(body.email).trim() : null,
   offers: body.offers ? String(body.offers).trim() : null,
+  logoUrl: body.logoUrl ? String(body.logoUrl).trim() : null,
   photos: Array.isArray(body.photos) ? body.photos.filter((photo): photo is string => typeof photo === 'string') : [],
 });
 const mapHelp = (r: any) => ({ ...r, requesterName: r.user.displayName, requesterAvatarUrl: r.user.avatarUrl, requesterPhone: r.user.phone, requesterLocation: r.location, helpers: r.helpers.map((h: any) => ({ id: h.id, requestId: h.requestId, helperId: h.userId, helperName: h.user.displayName, helperAvatarUrl: h.user.avatarUrl, helperPhone: h.user.phone, message: h.message, offeredAt: h.createdAt })), reports: [] });
