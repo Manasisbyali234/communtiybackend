@@ -23,6 +23,8 @@ const businessFields = (body: Record<string, unknown>) => ({
   phone: body.phone ? String(body.phone).trim() : null,
   email: body.email ? String(body.email).trim() : null,
   offers: body.offers ? String(body.offers).trim() : null,
+  // The frontend uploads the file first, then submits the resulting URL with
+  // the business listing. Persist it so public/admin business cards can render it.
   logoUrl: body.logoUrl ? String(body.logoUrl).trim() : null,
   photos: Array.isArray(body.photos) ? body.photos.filter((photo): photo is string => typeof photo === 'string') : [],
 });

@@ -25,6 +25,9 @@ const businessFields = (body) => ({
     phone: body.phone ? String(body.phone).trim() : null,
     email: body.email ? String(body.email).trim() : null,
     offers: body.offers ? String(body.offers).trim() : null,
+    // The frontend uploads the file first, then submits the resulting URL with
+    // the business listing. Persist it so public/admin business cards can render it.
+    logoUrl: body.logoUrl ? String(body.logoUrl).trim() : null,
     photos: Array.isArray(body.photos) ? body.photos.filter((photo) => typeof photo === 'string') : [],
 });
 const mapHelp = (r) => ({ ...r, requesterName: r.user.displayName, requesterAvatarUrl: r.user.avatarUrl, requesterPhone: r.user.phone, requesterLocation: r.location, helpers: r.helpers.map((h) => ({ id: h.id, requestId: h.requestId, helperId: h.userId, helperName: h.user.displayName, helperAvatarUrl: h.user.avatarUrl, helperPhone: h.user.phone, message: h.message, offeredAt: h.createdAt })), reports: [] });

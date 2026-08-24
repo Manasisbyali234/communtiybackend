@@ -20,7 +20,6 @@ function multerErrorHandler(err: any, _req: Request, _res: Response, next: NextF
   next(err);
 }
 
-router.post('/upload-business-image', uploadMiddleware, multerErrorHandler, mediaController.uploadBusinessImage);
 router.post('/upload-chat', uploadMiddleware, multerErrorHandler, mediaController.uploadChatFile);
 router.post('/upload-event', uploadMiddleware, multerErrorHandler, mediaController.uploadEventImage);
 router.post('/upload-community', uploadMiddleware, multerErrorHandler, mediaController.uploadCommunityImage);
