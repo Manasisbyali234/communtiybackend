@@ -63,8 +63,20 @@ export const usersService = {
       where: { id: userId, isActive: true },
       select: {
         id: true, username: true, displayName: true, bio: true,
-        avatarUrl: true, bannerUrl: true, isVerified: true, role: true, createdAt: true,
-        _count: { select: { followers: true, following: true, posts: true } },
+        avatarUrl: true, bannerUrl: true, coverImage: true, village: true, occupation: true,
+        languages: true, interests: true, isVerified: true, role: true, createdAt: true,
+        _count: {
+          select: {
+            followers: true,
+            following: true,
+            posts: true,
+            // A help count represents concrete responses, not requests created.
+            helpOffers: true,
+            // The data model records attendance through a GOING RSVP.
+            eventRsvps: { where: { status: 'GOING' } },
+            communityMembers: { where: { status: CommunityMemberStatus.ACTIVE } },
+          },
+        },
       },
     });
     if (!user) throw ApiError.notFound('User not found');
@@ -78,6 +90,9 @@ export const usersService = {
       followersCount: user._count.followers,
       followingCount: user._count.following,
       postsCount: user._count.posts,
+      helpCount: user._count.helpOffers,
+      attendedEventCount: user._count.eventRsvps,
+      communitiesCount: user._count.communityMembers,
       isFollowing,
     };
   },

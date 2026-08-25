@@ -54,6 +54,9 @@ export declare const usersService: {
         followersCount: number;
         followingCount: number;
         postsCount: number;
+        helpCount: number;
+        attendedEventCount: number;
+        communitiesCount: number;
         isFollowing: boolean;
         id: string;
         createdAt: Date;
@@ -62,12 +65,20 @@ export declare const usersService: {
         bio: string;
         avatarUrl: string;
         bannerUrl: string;
+        coverImage: string;
+        village: string;
+        occupation: string;
+        languages: string;
+        interests: string;
         role: import(".prisma/client").$Enums.Role;
         isVerified: boolean;
         _count: {
             posts: number;
             following: number;
             followers: number;
+            communityMembers: number;
+            eventRsvps: number;
+            helpOffers: number;
         };
     }>;
     followUser(followerId: string, followingId: string): Promise<void>;
