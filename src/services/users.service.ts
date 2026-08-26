@@ -2,7 +2,7 @@ import { prisma } from '../config/database';
 import { ApiError } from '../utils/ApiError';
 import { buildCursorArgs, buildCursorPage } from '../utils/pagination';
 import { notificationsService } from './notifications.service';
-import { CommunityMemberStatus } from '@prisma/client';
+import { CommunityMemberStatus, EventStatus, RsvpStatus } from '@prisma/client';
 export const usersService = {
   async getMe(userId: string) {
     const user = await prisma.user.findUniqueOrThrow({
@@ -17,6 +17,8 @@ export const usersService = {
             posts: true,
             // Do not count rejected or pending community applications as memberships.
             communityMembers: { where: { status: CommunityMemberStatus.ACTIVE } },
+            helpOffers: true,
+            eventRsvps: { where: { status: 'GOING' } },
           },
         },
       },
@@ -27,6 +29,8 @@ export const usersService = {
       followingCount: user._count.following,
       postsCount: user._count.posts,
       communitiesCount: user._count.communityMembers,
+      helpCount: user._count.helpOffers,
+      attendedEventCount: user._count.eventRsvps,
     };
   },
 
@@ -156,6 +160,20 @@ export const usersService = {
       orderBy: { createdAt: 'desc' },
     });
     return buildCursorPage(posts, limit);
+  },
+
+  async getUserJoinedEvents(userId: string, cursor?: string, limit = 20) {
+    const args = buildCursorArgs({ cursor, limit });
+    const events = await prisma.event.findMany({
+      ...args,
+      where: {
+        status: EventStatus.APPROVED,
+        rsvps: { some: { userId, status: RsvpStatus.GOING } },
+      },
+      include: { community: { select: { id: true, name: true, slug: true } } },
+      orderBy: { startsAt: 'desc' },
+    });
+    return buildCursorPage(events, limit);
   },
 
   async updatePushToken(userId: string, expoPushToken: string) {

@@ -115,4 +115,10 @@ export const usersController = {
     const result = await usersService.getUserPosts(req.params['id'], cursor, limit ? parseInt(limit) : 20);
     res.json(new ApiResponse(200, result));
   }),
+
+  getUserJoinedEvents: asyncHandler(async (req: Request, res: Response) => {
+    const { cursor, limit } = req.query as { cursor?: string; limit?: string };
+    const result = await usersService.getUserJoinedEvents(req.params['id'], cursor, limit ? parseInt(limit) : 20);
+    res.json(new ApiResponse(200, result));
+  }),
 };

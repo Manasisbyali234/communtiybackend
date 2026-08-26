@@ -65,6 +65,7 @@ router.delete('/:id/follow', users_controller_1.usersController.unfollow);
 router.get('/:id/followers', (0, validate_1.validate)({ query: CursorQuerySchema }), users_controller_1.usersController.getFollowers);
 router.get('/:id/following', (0, validate_1.validate)({ query: CursorQuerySchema }), users_controller_1.usersController.getFollowing);
 router.get('/:id/posts', (0, validate_1.validate)({ query: CursorQuerySchema }), users_controller_1.usersController.getUserPosts);
+router.get('/:id/events', (0, validate_1.validate)({ query: CursorQuerySchema }), users_controller_1.usersController.getUserJoinedEvents);
 router.get('/:id/job-applications', jobs_controller_1.getUserApplications);
 exports.default = router;
 //# sourceMappingURL=users.routes.js.map

@@ -4,6 +4,8 @@ export declare const usersService: {
         followingCount: number;
         postsCount: number;
         communitiesCount: number;
+        helpCount: number;
+        attendedEventCount: number;
         email: string;
         id: string;
         createdAt: Date;
@@ -24,6 +26,8 @@ export declare const usersService: {
             following: number;
             followers: number;
             communityMembers: number;
+            eventRsvps: number;
+            helpOffers: number;
         };
     }>;
     updateMe(userId: string, data: {
@@ -122,6 +126,31 @@ export declare const usersService: {
         sharesCount: number;
         isDraft: boolean;
         scheduledAt: Date | null;
+    }>>;
+    getUserJoinedEvents(userId: string, cursor?: string, limit?: number): Promise<import("../utils/pagination").CursorPage<{
+        community: {
+            name: string;
+            id: string;
+            slug: string;
+        };
+    } & {
+        status: import(".prisma/client").$Enums.EventStatus;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        description: string | null;
+        communityId: string | null;
+        likesCount: number;
+        commentsCount: number;
+        sharesCount: number;
+        creatorId: string;
+        title: string;
+        location: string | null;
+        startsAt: Date;
+        endsAt: Date | null;
+        coverUrl: string | null;
+        rsvpCount: number;
+        interestedCount: number;
     }>>;
     updatePushToken(userId: string, expoPushToken: string): Promise<void>;
 };

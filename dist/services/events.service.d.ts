@@ -33,9 +33,9 @@ export declare const eventsService: {
         likesCount: number;
         commentsCount: number;
         sharesCount: number;
-        location: string | null;
-        title: string;
         creatorId: string;
+        title: string;
+        location: string | null;
         startsAt: Date;
         endsAt: Date | null;
         coverUrl: string | null;
@@ -64,9 +64,9 @@ export declare const eventsService: {
         likesCount: number;
         commentsCount: number;
         sharesCount: number;
-        location: string | null;
-        title: string;
         creatorId: string;
+        title: string;
+        location: string | null;
         startsAt: Date;
         endsAt: Date | null;
         rsvpCount: number;
@@ -89,9 +89,9 @@ export declare const eventsService: {
         likesCount: number;
         commentsCount: number;
         sharesCount: number;
-        location: string | null;
-        title: string;
         creatorId: string;
+        title: string;
+        location: string | null;
         startsAt: Date;
         endsAt: Date | null;
         coverUrl: string | null;

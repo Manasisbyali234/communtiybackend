@@ -19,5 +19,6 @@ export declare const usersController: {
     getFollowers: (req: Request, res: Response, next: import("express").NextFunction) => void;
     getFollowing: (req: Request, res: Response, next: import("express").NextFunction) => void;
     getUserPosts: (req: Request, res: Response, next: import("express").NextFunction) => void;
+    getUserJoinedEvents: (req: Request, res: Response, next: import("express").NextFunction) => void;
 };
 //# sourceMappingURL=users.controller.d.ts.map

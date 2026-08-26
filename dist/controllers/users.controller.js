@@ -98,5 +98,10 @@ exports.usersController = {
         const result = await users_service_1.usersService.getUserPosts(req.params['id'], cursor, limit ? parseInt(limit) : 20);
         res.json(new ApiResponse_1.ApiResponse(200, result));
     }),
+    getUserJoinedEvents: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const { cursor, limit } = req.query;
+        const result = await users_service_1.usersService.getUserJoinedEvents(req.params['id'], cursor, limit ? parseInt(limit) : 20);
+        res.json(new ApiResponse_1.ApiResponse(200, result));
+    }),
 };
 //# sourceMappingURL=users.controller.js.map

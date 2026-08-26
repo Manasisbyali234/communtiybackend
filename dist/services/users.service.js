@@ -20,6 +20,8 @@ exports.usersService = {
                         posts: true,
                         // Do not count rejected or pending community applications as memberships.
                         communityMembers: { where: { status: client_1.CommunityMemberStatus.ACTIVE } },
+                        helpOffers: true,
+                        eventRsvps: { where: { status: 'GOING' } },
                     },
                 },
             },
@@ -30,6 +32,8 @@ exports.usersService = {
             followingCount: user._count.following,
             postsCount: user._count.posts,
             communitiesCount: user._count.communityMembers,
+            helpCount: user._count.helpOffers,
+            attendedEventCount: user._count.eventRsvps,
         };
     },
     async updateMe(userId, data) {
@@ -151,6 +155,19 @@ exports.usersService = {
             orderBy: { createdAt: 'desc' },
         });
         return (0, pagination_1.buildCursorPage)(posts, limit);
+    },
+    async getUserJoinedEvents(userId, cursor, limit = 20) {
+        const args = (0, pagination_1.buildCursorArgs)({ cursor, limit });
+        const events = await database_1.prisma.event.findMany({
+            ...args,
+            where: {
+                status: client_1.EventStatus.APPROVED,
+                rsvps: { some: { userId, status: client_1.RsvpStatus.GOING } },
+            },
+            include: { community: { select: { id: true, name: true, slug: true } } },
+            orderBy: { startsAt: 'desc' },
+        });
+        return (0, pagination_1.buildCursorPage)(events, limit);
     },
     async updatePushToken(userId, expoPushToken) {
         await database_1.prisma.deviceToken.upsert({

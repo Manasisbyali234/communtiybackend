@@ -77,6 +77,7 @@ router.delete('/:id/follow', usersController.unfollow);
 router.get('/:id/followers', validate({ query: CursorQuerySchema }), usersController.getFollowers);
 router.get('/:id/following', validate({ query: CursorQuerySchema }), usersController.getFollowing);
 router.get('/:id/posts', validate({ query: CursorQuerySchema }), usersController.getUserPosts);
+router.get('/:id/events', validate({ query: CursorQuerySchema }), usersController.getUserJoinedEvents);
 router.get('/:id/job-applications', getUserApplications);
 
 export default router;
