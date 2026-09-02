@@ -14,7 +14,9 @@ export const usersService = {
         city: true, nativePlace: true, currentLocation: true, village: true,
         occupation: true, profession: true, company: true, education: true,
         skills: true, languages: true, interests: true, role: true,
-        isVerified: true, phone: true, createdAt: true,
+        isVerified: true, phone: true, phoneVerified: true, approvalStatus: true,
+        rejectionReason: true, approvalHistory: true, isActive: true, isBanned: true,
+        createdAt: true,
         _count: {
           select: {
             followers: true,
@@ -40,16 +42,36 @@ export const usersService = {
   },
 
   async updateMe(userId: string, data: { displayName?: string; bio?: string; avatarUrl?: string; bannerUrl?: string; coverImage?: string | null; familyName?: string; dob?: string; gender?: string; country?: string; state?: string; district?: string; city?: string; nativePlace?: string; currentLocation?: string; village?: string; occupation?: string; profession?: string; company?: string; education?: string; skills?: string; languages?: string; interests?: string }) {
+    const current = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { approvalStatus: true, approvalHistory: true },
+    });
+    const shouldResubmit = current?.approvalStatus === 'REJECTED' || current?.approvalStatus === 'PENDING' || current?.approvalStatus === 'RESUBMITTED';
+    const history = Array.isArray(current?.approvalHistory) ? current!.approvalHistory : [];
+
     return prisma.user.update({
       where: { id: userId },
-      data,
+      data: {
+        ...data,
+        ...(shouldResubmit
+          ? {
+              approvalStatus: 'RESUBMITTED',
+              rejectionReason: null,
+              approvalHistory: [
+                ...history,
+                { status: 'RESUBMITTED', date: new Date().toISOString() },
+              ] as any,
+            }
+          : {}),
+      },
       select: {
         id: true, username: true, displayName: true, bio: true,
         avatarUrl: true, bannerUrl: true, coverImage: true, familyName: true,
         dob: true, gender: true, country: true, state: true, district: true,
         city: true, nativePlace: true, currentLocation: true, village: true,
         occupation: true, profession: true, company: true, education: true,
-        skills: true, languages: true, interests: true,
+        skills: true, languages: true, interests: true, approvalStatus: true,
+        rejectionReason: true, approvalHistory: true,
       },
     });
   },
@@ -84,7 +106,8 @@ export const usersService = {
         city: true, nativePlace: true, currentLocation: true, village: true,
         occupation: true, profession: true, company: true, education: true,
         skills: true, languages: true, interests: true, isVerified: true,
-        role: true, createdAt: true,
+        role: true, phoneVerified: true, approvalStatus: true,
+        rejectionReason: true, approvalHistory: true, createdAt: true,
         _count: {
           select: {
             followers: true,

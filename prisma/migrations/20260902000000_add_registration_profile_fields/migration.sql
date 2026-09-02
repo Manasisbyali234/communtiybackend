@@ -1,15 +1,15 @@
 -- Add profile fields collected during community registration.
 ALTER TABLE "User"
-ADD COLUMN "familyName" TEXT,
-ADD COLUMN "dob" TEXT,
-ADD COLUMN "gender" TEXT,
-ADD COLUMN "country" TEXT,
-ADD COLUMN "state" TEXT,
-ADD COLUMN "district" TEXT,
-ADD COLUMN "city" TEXT,
-ADD COLUMN "nativePlace" TEXT,
-ADD COLUMN "currentLocation" TEXT,
-ADD COLUMN "profession" TEXT,
-ADD COLUMN "company" TEXT,
-ADD COLUMN "education" TEXT,
-ADD COLUMN "skills" TEXT;
+ADD COLUMN IF NOT EXISTS "familyName" TEXT,
+ADD COLUMN IF NOT EXISTS "dob" TEXT,
+ADD COLUMN IF NOT EXISTS "gender" TEXT,
+ADD COLUMN IF NOT EXISTS "country" TEXT,
+ADD COLUMN IF NOT EXISTS "state" TEXT,
+ADD COLUMN IF NOT EXISTS "district" TEXT,
+ADD COLUMN IF NOT EXISTS "city" TEXT,
+ADD COLUMN IF NOT EXISTS "nativePlace" TEXT,
+ADD COLUMN IF NOT EXISTS "currentLocation" TEXT,
+ADD COLUMN IF NOT EXISTS "profession" TEXT,
+ADD COLUMN IF NOT EXISTS "company" TEXT,
+ADD COLUMN IF NOT EXISTS "education" TEXT,
+ADD COLUMN IF NOT EXISTS "skills" TEXT;

@@ -156,6 +156,10 @@ model User {
   isActive     Boolean   @default(true)
   isBanned     Boolean   @default(false)
   phone        String?
+  phoneVerified Boolean   @default(true)
+  approvalStatus String   @default("APPROVED")
+  rejectionReason String?
+  approvalHistory Json    @default("[]")
   banReason      String?
   banExpiresAt   DateTime?
   deletedAt      DateTime?
@@ -211,6 +215,7 @@ model User {
   @@index([email])
   @@index([username])
   @@index([deletedAt])
+  @@index([approvalStatus])
 }
 
 model OAuthAccount {

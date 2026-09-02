@@ -39,6 +39,16 @@ export const authController = {
     res.status(200).json(new ApiResponse(200, null, 'Verification email sent'));
   }),
 
+  verifyPhone: asyncHandler(async (req: Request, res: Response) => {
+    const { phone } = req.body as { phone: string; code: string };
+    const user = await authService.verifyPhone(req.user.id, phone);
+    res.status(200).json(new ApiResponse(200, { user }, 'Phone verified successfully'));
+  }),
+
+  resendPhoneOtp: asyncHandler(async (_req: Request, res: Response) => {
+    res.status(200).json(new ApiResponse(200, null, 'Phone verification code sent'));
+  }),
+
   forgotPassword: asyncHandler(async (req: Request, res: Response) => {
     const { email } = req.body as { email: string };
     await authService.forgotPassword(email);

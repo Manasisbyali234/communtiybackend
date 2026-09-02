@@ -35,6 +35,13 @@ const LoginSchema = z.object({
 });
 
 const OtpSchema = z.object({ code: z.string().length(6) });
+const PhoneOtpSchema = z.object({
+  phone: z.string().min(10).max(20),
+  code: z.string().length(6),
+});
+const ResendPhoneOtpSchema = z.object({
+  phone: z.string().min(10).max(20),
+});
 
 const RefreshSchema = z.object({ refreshToken: z.string().min(1) });
 
@@ -67,6 +74,8 @@ router.post('/login', validate({ body: LoginSchema }), authController.login);
 router.post('/refresh', validate({ body: RefreshSchema }), authController.refresh);
 router.post('/forgot-password', validate({ body: ForgotPasswordSchema }), authController.forgotPassword);
 router.post('/reset-password', validate({ body: ResetPasswordSchema }), authController.resetPassword);
+router.post('/verify-phone', auth, validate({ body: PhoneOtpSchema }), authController.verifyPhone);
+router.post('/resend-phone-otp', auth, validate({ body: ResendPhoneOtpSchema }), authController.resendPhoneOtp);
 
 // Passwordless OTP login
 router.post('/otp-login', validate({ body: OtpLoginRequestSchema }), authController.requestOtpLogin);

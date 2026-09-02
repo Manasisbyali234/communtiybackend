@@ -60,6 +60,15 @@ const buildRegistrationProfileData = (data: RegisterData) => {
     company: clean(data.company),
     education: clean(data.education),
     skills: clean(data.skills),
+    phoneVerified: false,
+    approvalStatus: 'PENDING',
+    rejectionReason: undefined,
+    approvalHistory: [
+      {
+        status: 'PENDING',
+        date: new Date().toISOString(),
+      },
+    ],
   };
 };
 
@@ -86,6 +95,12 @@ const userAuthSelect = {
   skills: true,
   role: true,
   isVerified: true,
+  isActive: true,
+  isBanned: true,
+  phoneVerified: true,
+  approvalStatus: true,
+  rejectionReason: true,
+  approvalHistory: true,
 } as const;
 
 export const authService = {
@@ -104,6 +119,7 @@ export const authService = {
             ...profileData,
             passwordHash,
             isActive: true,
+            isVerified: false,
           },
           select: userAuthSelect,
         });
@@ -151,7 +167,8 @@ export const authService = {
         phone: true, familyName: true, dob: true, gender: true, country: true,
         state: true, district: true, city: true, nativePlace: true,
         currentLocation: true, village: true, occupation: true, profession: true,
-        company: true, education: true, skills: true,
+        company: true, education: true, skills: true, phoneVerified: true,
+        approvalStatus: true, rejectionReason: true, approvalHistory: true,
       },
     });
 
@@ -221,6 +238,14 @@ export const authService = {
     await emailService.sendOtp(user.email, code, 'VERIFY_EMAIL');
   },
 
+  async verifyPhone(userId: string, phone: string) {
+    return prisma.user.update({
+      where: { id: userId },
+      data: { phone, phoneVerified: true },
+      select: userAuthSelect,
+    });
+  },
+
   async forgotPassword(email: string): Promise<void> {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) throw ApiError.notFound('Email is not registered');
@@ -270,7 +295,6 @@ export const authService = {
       where: { email },
       select: {
         ...userAuthSelect,
-        isActive: true,
         isBanned: true,
         avatarUrl: true,
       },

@@ -11,11 +11,12 @@ router.use(adminAuth);
 
 // ── Pending Counts (bell icon) ────────────────────────────────────────────────
 router.get('/pending-counts', asyncHandler(async (_req, res) => {
-  const [pendingCommunities, pendingEvents] = await Promise.all([
+  const [pendingCommunities, pendingEvents, pendingProfiles] = await Promise.all([
     prisma.community.count({ where: { status: 'PENDING' } }),
     prisma.event.count({ where: { status: 'PENDING_APPROVAL' } }),
+    prisma.user.count({ where: { role: { not: 'ADMIN' }, deletedAt: null, approvalStatus: { in: ['PENDING', 'RESUBMITTED'] } } }),
   ]);
-  res.json(new ApiResponse(200, { pendingCommunities, pendingEvents, total: pendingCommunities + pendingEvents }));
+  res.json(new ApiResponse(200, { pendingCommunities, pendingEvents, pendingProfiles, total: pendingCommunities + pendingEvents + pendingProfiles }));
 }));
 const paginate = (query: any) => ({
   skip: parseInt(query.skip ?? '0'),
@@ -24,6 +25,40 @@ const paginate = (query: any) => ({
 
 const searchWhere = (q?: string, fields: string[] = ['email', 'username', 'displayName']) =>
   q ? { OR: fields.map((f) => ({ [f]: { contains: q, mode: 'insensitive' as const } })) } : {};
+
+const userProfileSelect = {
+  id: true, email: true, username: true, displayName: true, avatarUrl: true,
+  role: true, isActive: true, isVerified: true, isBanned: true, banReason: true,
+  phone: true, phoneVerified: true, approvalStatus: true, rejectionReason: true,
+  approvalHistory: true, familyName: true, dob: true, gender: true, country: true,
+  state: true, district: true, city: true, nativePlace: true, currentLocation: true,
+  village: true, occupation: true, profession: true, company: true, education: true,
+  skills: true, createdAt: true, updatedAt: true, deletedAt: true, deletionReason: true,
+} as const;
+
+async function updateApprovalStatus(userId: string, status: string, adminId: string, reason?: string) {
+  const [target, admin] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { approvalHistory: true } }),
+    prisma.user.findUnique({ where: { id: adminId }, select: { displayName: true, username: true } }),
+  ]);
+  if (!target) throw ApiError.notFound('User not found');
+
+  const history = Array.isArray(target.approvalHistory) ? target.approvalHistory : [];
+  const adminName = admin?.displayName || admin?.username || 'Administrator';
+
+  return prisma.user.update({
+    where: { id: userId },
+    data: {
+      approvalStatus: status,
+      rejectionReason: status === 'REJECTED' ? reason ?? null : null,
+      isVerified: status === 'APPROVED',
+      isActive: status !== 'SUSPENDED',
+      isBanned: status === 'SUSPENDED',
+      approvalHistory: [...history, { status, date: new Date().toISOString(), ...(reason ? { reason } : {}), adminName }] as any,
+    },
+    select: userProfileSelect,
+  });
+}
 
 // ── Dashboard Overview ────────────────────────────────────────────────────────
 router.get(
@@ -166,7 +201,8 @@ router.get('/users', asyncHandler(async (req, res) => {
       select: {
         id: true, email: true, username: true, displayName: true, avatarUrl: true,
         role: true, isActive: true, isVerified: true, isBanned: true, banReason: true,
-        phone: true, familyName: true, dob: true, gender: true, country: true,
+        phone: true, phoneVerified: true, approvalStatus: true, rejectionReason: true,
+        approvalHistory: true, familyName: true, dob: true, gender: true, country: true,
         state: true, district: true, city: true, nativePlace: true,
         currentLocation: true, village: true, occupation: true, profession: true,
         company: true, education: true, skills: true, createdAt: true,
@@ -177,6 +213,45 @@ router.get('/users', asyncHandler(async (req, res) => {
     prisma.user.count({ where }),
   ]);
   res.json(new ApiResponse(200, { users, total, skip, take }));
+}));
+
+router.get('/profile-approvals', asyncHandler(async (req, res) => {
+  const { skip, take } = paginate(req.query);
+  const { q, status } = req.query as Record<string, string>;
+  const where: any = {
+    deletedAt: null,
+    role: { not: 'ADMIN' },
+    ...(status && status !== 'ALL' ? { approvalStatus: status } : {}),
+    ...searchWhere(q, ['email', 'username', 'displayName', 'familyName', 'phone', 'district', 'city']),
+  };
+  const [users, total] = await Promise.all([
+    prisma.user.findMany({ skip, take, where, orderBy: { createdAt: 'desc' }, select: userProfileSelect }),
+    prisma.user.count({ where }),
+  ]);
+  res.json(new ApiResponse(200, { users, total, skip, take }));
+}));
+
+router.put('/profile-approvals/:id/approve', asyncHandler(async (req, res) => {
+  const user = await updateApprovalStatus(req.params['id'], 'APPROVED', (req as any).adminId);
+  res.json(new ApiResponse(200, user, 'Profile approved'));
+}));
+
+router.put('/profile-approvals/:id/reject', asyncHandler(async (req, res) => {
+  const { reason } = req.body as { reason?: string };
+  if (!reason?.trim()) throw ApiError.badRequest('Rejection reason is required');
+  const user = await updateApprovalStatus(req.params['id'], 'REJECTED', (req as any).adminId, reason.trim());
+  res.json(new ApiResponse(200, user, 'Profile rejected'));
+}));
+
+router.put('/profile-approvals/:id/suspend', asyncHandler(async (req, res) => {
+  const { reason } = req.body as { reason?: string };
+  const user = await updateApprovalStatus(req.params['id'], 'SUSPENDED', (req as any).adminId, reason?.trim() || 'Administrative suspension');
+  res.json(new ApiResponse(200, user, 'Profile suspended'));
+}));
+
+router.put('/profile-approvals/:id/reactivate', asyncHandler(async (req, res) => {
+  const user = await updateApprovalStatus(req.params['id'], 'APPROVED', (req as any).adminId, 'Reactivated by Admin');
+  res.json(new ApiResponse(200, user, 'Profile reactivated'));
 }));
 
 router.put('/users/:id/ban', asyncHandler(async (req, res) => {
