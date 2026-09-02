@@ -14,7 +14,7 @@ export const usersController = {
   }),
 
   updateMe: asyncHandler(async (req: Request, res: Response) => {
-    const user = await usersService.updateMe(req.user.id, req.body as { displayName?: string; bio?: string; avatarUrl?: string; bannerUrl?: string; coverImage?: string | null; village?: string; occupation?: string; languages?: string; interests?: string });
+    const user = await usersService.updateMe(req.user.id, req.body);
     res.json(new ApiResponse(200, user, 'Profile updated'));
   }),
 

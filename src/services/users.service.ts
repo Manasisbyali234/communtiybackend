@@ -9,7 +9,12 @@ export const usersService = {
       where: { id: userId },
       select: {
         id: true, email: true, username: true, displayName: true, bio: true,
-        avatarUrl: true, bannerUrl: true, coverImage: true, village: true, occupation: true, languages: true, interests: true, role: true, isVerified: true, createdAt: true,
+        avatarUrl: true, bannerUrl: true, coverImage: true, familyName: true,
+        dob: true, gender: true, country: true, state: true, district: true,
+        city: true, nativePlace: true, currentLocation: true, village: true,
+        occupation: true, profession: true, company: true, education: true,
+        skills: true, languages: true, interests: true, role: true,
+        isVerified: true, phone: true, createdAt: true,
         _count: {
           select: {
             followers: true,
@@ -34,11 +39,18 @@ export const usersService = {
     };
   },
 
-  async updateMe(userId: string, data: { displayName?: string; bio?: string; avatarUrl?: string; bannerUrl?: string; coverImage?: string | null; village?: string; occupation?: string; languages?: string; interests?: string }) {
+  async updateMe(userId: string, data: { displayName?: string; bio?: string; avatarUrl?: string; bannerUrl?: string; coverImage?: string | null; familyName?: string; dob?: string; gender?: string; country?: string; state?: string; district?: string; city?: string; nativePlace?: string; currentLocation?: string; village?: string; occupation?: string; profession?: string; company?: string; education?: string; skills?: string; languages?: string; interests?: string }) {
     return prisma.user.update({
       where: { id: userId },
       data,
-      select: { id: true, username: true, displayName: true, bio: true, avatarUrl: true, bannerUrl: true, coverImage: true, village: true, occupation: true, languages: true, interests: true },
+      select: {
+        id: true, username: true, displayName: true, bio: true,
+        avatarUrl: true, bannerUrl: true, coverImage: true, familyName: true,
+        dob: true, gender: true, country: true, state: true, district: true,
+        city: true, nativePlace: true, currentLocation: true, village: true,
+        occupation: true, profession: true, company: true, education: true,
+        skills: true, languages: true, interests: true,
+      },
     });
   },
 
@@ -67,8 +79,12 @@ export const usersService = {
       where: { id: userId, isActive: true },
       select: {
         id: true, username: true, displayName: true, bio: true,
-        avatarUrl: true, bannerUrl: true, coverImage: true, village: true, occupation: true,
-        languages: true, interests: true, isVerified: true, role: true, createdAt: true,
+        avatarUrl: true, bannerUrl: true, coverImage: true, familyName: true,
+        dob: true, gender: true, country: true, state: true, district: true,
+        city: true, nativePlace: true, currentLocation: true, village: true,
+        occupation: true, profession: true, company: true, education: true,
+        skills: true, languages: true, interests: true, isVerified: true,
+        role: true, createdAt: true,
         _count: {
           select: {
             followers: true,

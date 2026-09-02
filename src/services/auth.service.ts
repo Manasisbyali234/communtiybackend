@@ -148,6 +148,10 @@ export const authService = {
         id: true, email: true, username: true, displayName: true,
         role: true, isVerified: true, isActive: true, isBanned: true,
         banReason: true, banExpiresAt: true, passwordHash: true, avatarUrl: true, deletedAt: true,
+        phone: true, familyName: true, dob: true, gender: true, country: true,
+        state: true, district: true, city: true, nativePlace: true,
+        currentLocation: true, village: true, occupation: true, profession: true,
+        company: true, education: true, skills: true,
       },
     });
 
@@ -264,7 +268,12 @@ export const authService = {
   async verifyOtpLogin(email: string, code: string): Promise<{ user: object; accessToken: string; refreshToken: string }> {
     const user = await prisma.user.findUnique({
       where: { email },
-      select: { id: true, email: true, username: true, displayName: true, role: true, isVerified: true, isActive: true, isBanned: true, avatarUrl: true },
+      select: {
+        ...userAuthSelect,
+        isActive: true,
+        isBanned: true,
+        avatarUrl: true,
+      },
     });
     if (!user || !user.isActive) throw ApiError.unauthorized('Invalid or expired code');
     if (user.isBanned) throw ApiError.forbidden('Account is banned');
