@@ -8,16 +8,91 @@ import { config } from '../config/index';
 import { logger } from '../config/logger';
 import { TokenPair } from '../types/index';
 
+type RegisterData = {
+  email: string;
+  username: string;
+  displayName: string;
+  password: string;
+  phone?: string;
+  familyName?: string;
+  dob?: string;
+  gender?: string;
+  country?: string;
+  state?: string;
+  district?: string;
+  city?: string;
+  nativePlace?: string;
+  currentLocation?: string;
+  occupation?: string;
+  profession?: string;
+  company?: string;
+  education?: string;
+  skills?: string;
+  referredById?: string;
+};
+
+const clean = (value?: string | null) => {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+};
+
+const buildRegistrationProfileData = (data: RegisterData) => {
+  const nativePlace = clean(data.nativePlace);
+  const city = clean(data.city);
+
+  return {
+    email: data.email.trim().toLowerCase(),
+    username: data.username.trim().toLowerCase(),
+    displayName: data.displayName.trim(),
+    phone: clean(data.phone),
+    familyName: clean(data.familyName),
+    dob: clean(data.dob),
+    gender: clean(data.gender),
+    country: clean(data.country),
+    state: clean(data.state),
+    district: clean(data.district),
+    city,
+    nativePlace,
+    currentLocation: clean(data.currentLocation) ?? city,
+    village: nativePlace ?? city,
+    occupation: clean(data.occupation),
+    profession: clean(data.profession),
+    company: clean(data.company),
+    education: clean(data.education),
+    skills: clean(data.skills),
+  };
+};
+
+const userAuthSelect = {
+  id: true,
+  email: true,
+  username: true,
+  displayName: true,
+  phone: true,
+  familyName: true,
+  dob: true,
+  gender: true,
+  country: true,
+  state: true,
+  district: true,
+  city: true,
+  nativePlace: true,
+  currentLocation: true,
+  village: true,
+  occupation: true,
+  profession: true,
+  company: true,
+  education: true,
+  skills: true,
+  role: true,
+  isVerified: true,
+} as const;
+
 export const authService = {
-  async register(data: {
-    email: string;
-    username: string;
-    displayName: string;
-    password: string;
-    referredById?: string;
-  }) {
+  async register(data: RegisterData) {
+    const profileData = buildRegistrationProfileData(data);
     const existing = await prisma.user.findFirst({
-      where: { OR: [{ email: data.email }, { username: data.username }] },
+      where: { OR: [{ email: profileData.email }, { username: profileData.username }] },
     });
     if (existing) {
       if (!existing.isActive) {
@@ -26,18 +101,16 @@ export const authService = {
         const user = await prisma.user.update({
           where: { id: existing.id },
           data: {
-            email: data.email,
-            username: data.username,
-            displayName: data.displayName,
+            ...profileData,
             passwordHash,
             isActive: true,
           },
-          select: { id: true, email: true, username: true, displayName: true, role: true, isVerified: true },
+          select: userAuthSelect,
         });
         const tokens = await tokenService.generateTokenPair(user);
         return { user, ...tokens };
       }
-      const field = existing.email === data.email ? 'email' : 'username';
+      const field = existing.email === profileData.email ? 'email' : 'username';
       throw ApiError.conflict(`This ${field} is already registered`);
     }
 
@@ -50,13 +123,11 @@ export const authService = {
 
     const user = await prisma.user.create({
       data: {
-        email: data.email,
-        username: data.username,
-        displayName: data.displayName,
+        ...profileData,
         passwordHash,
         ...(referredById ? { referredById } : {}),
       },
-      select: { id: true, email: true, username: true, displayName: true, role: true, isVerified: true },
+      select: userAuthSelect,
     });
 
     // Create OTP and send email non-blocking (SMTP failure won't break registration)

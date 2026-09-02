@@ -134,8 +134,21 @@ model User {
   avatarUrl    String?
   bannerUrl    String?
   coverImage   String?
+  familyName   String?
+  dob          String?
+  gender       String?
+  country      String?
+  state        String?
+  district     String?
+  city         String?
+  nativePlace  String?
+  currentLocation String?
   village      String?
   occupation   String?
+  profession   String?
+  company      String?
+  education    String?
+  skills       String?
   languages    String?
   interests    String?
   role         Role      @default(USER)

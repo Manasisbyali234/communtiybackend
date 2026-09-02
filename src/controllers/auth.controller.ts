@@ -6,7 +6,7 @@ import { asyncHandler } from '../utils/asyncHandler';
 
 export const authController = {
   register: asyncHandler(async (req: Request, res: Response) => {
-    const result = await authService.register(req.body as { email: string; username: string; displayName: string; password: string; referredById?: string });
+    const result = await authService.register(req.body);
     res.status(201).json(new ApiResponse(201, result, 'Account created successfully'));
   }),
 

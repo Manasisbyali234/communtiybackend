@@ -11,6 +11,22 @@ const RegisterSchema = z.object({
   username: z.string().min(3).max(30).regex(/^[a-z0-9_]+$/, 'Lowercase letters, numbers, and underscores only'),
   displayName: z.string().min(1).max(60),
   password: z.string().min(8).max(72),
+  phone: z.string().min(10).max(20).optional(),
+  familyName: z.string().min(1).max(60).optional(),
+  dob: z.string().max(20).optional(),
+  gender: z.enum(['Male', 'Female', 'Other']).optional(),
+  country: z.string().max(80).optional(),
+  state: z.string().max(80).optional(),
+  district: z.string().max(80).optional(),
+  city: z.string().max(80).optional(),
+  nativePlace: z.string().max(120).optional(),
+  currentLocation: z.string().max(120).optional(),
+  occupation: z.string().max(80).optional(),
+  profession: z.string().max(80).optional(),
+  company: z.string().max(120).optional(),
+  education: z.string().max(120).optional(),
+  skills: z.string().max(300).optional(),
+  referredById: z.string().min(1).optional(),
 });
 
 const LoginSchema = z.object({
