@@ -32,12 +32,16 @@ services:
       - redis
 
   db:
-    image: postgres:15
+    image: postgres:16
+    networks:
+      default:
+        aliases:
+          - community_postgres
     restart: always
     environment:
-      - POSTGRES_USER=${DB_USER:-root}
+      - POSTGRES_USER=${DB_USER:-postgres}
       - POSTGRES_PASSWORD=${DB_PASSWORD:-password}
-      - POSTGRES_DB=${DB_NAME:-community}
+      - POSTGRES_DB=${DB_NAME:-community_db}
     volumes:
       - db_data:/var/lib/postgresql/data
     ports:
