@@ -1,12 +1,28 @@
 import { TokenPair } from '../types/index';
+type RegisterData = {
+    email: string;
+    username: string;
+    displayName: string;
+    password: string;
+    phone?: string;
+    familyName?: string;
+    dob?: string;
+    gender?: string;
+    country?: string;
+    state?: string;
+    district?: string;
+    city?: string;
+    nativePlace?: string;
+    currentLocation?: string;
+    occupation?: string;
+    profession?: string;
+    company?: string;
+    education?: string;
+    skills?: string;
+    referredById?: string;
+};
 export declare const authService: {
-    register(data: {
-        email: string;
-        username: string;
-        displayName: string;
-        password: string;
-        referredById?: string;
-    }): Promise<{
+    register(data: RegisterData): Promise<{
         accessToken: string;
         refreshToken: string;
         user: {
@@ -14,8 +30,30 @@ export declare const authService: {
             id: string;
             username: string;
             displayName: string;
+            familyName: string;
+            dob: string;
+            gender: string;
+            country: string;
+            state: string;
+            district: string;
+            city: string;
+            nativePlace: string;
+            currentLocation: string;
+            village: string;
+            occupation: string;
+            profession: string;
+            company: string;
+            education: string;
+            skills: string;
             role: import(".prisma/client").$Enums.Role;
             isVerified: boolean;
+            isActive: boolean;
+            isBanned: boolean;
+            phone: string;
+            phoneVerified: boolean;
+            approvalStatus: string;
+            rejectionReason: string;
+            approvalHistory: import("@prisma/client/runtime/library").JsonValue;
         };
     }>;
     login(email: string, password: string): Promise<{
@@ -27,10 +65,30 @@ export declare const authService: {
             username: string;
             displayName: string;
             avatarUrl: string;
+            familyName: string;
+            dob: string;
+            gender: string;
+            country: string;
+            state: string;
+            district: string;
+            city: string;
+            nativePlace: string;
+            currentLocation: string;
+            village: string;
+            occupation: string;
+            profession: string;
+            company: string;
+            education: string;
+            skills: string;
             role: import(".prisma/client").$Enums.Role;
             isVerified: boolean;
             isActive: boolean;
             isBanned: boolean;
+            phone: string;
+            phoneVerified: boolean;
+            approvalStatus: string;
+            rejectionReason: string;
+            approvalHistory: import("@prisma/client/runtime/library").JsonValue;
             banReason: string;
             banExpiresAt: Date;
             deletedAt: Date;
@@ -40,6 +98,36 @@ export declare const authService: {
     refreshTokens(refreshToken: string): Promise<TokenPair>;
     verifyEmail(userId: string, code: string): Promise<void>;
     resendVerification(userId: string): Promise<void>;
+    verifyPhone(userId: string, phone: string): Promise<{
+        email: string;
+        id: string;
+        username: string;
+        displayName: string;
+        familyName: string;
+        dob: string;
+        gender: string;
+        country: string;
+        state: string;
+        district: string;
+        city: string;
+        nativePlace: string;
+        currentLocation: string;
+        village: string;
+        occupation: string;
+        profession: string;
+        company: string;
+        education: string;
+        skills: string;
+        role: import(".prisma/client").$Enums.Role;
+        isVerified: boolean;
+        isActive: boolean;
+        isBanned: boolean;
+        phone: string;
+        phoneVerified: boolean;
+        approvalStatus: string;
+        rejectionReason: string;
+        approvalHistory: import("@prisma/client/runtime/library").JsonValue;
+    }>;
     forgotPassword(email: string): Promise<void>;
     resetPassword(email: string, code: string, newPassword: string): Promise<void>;
     changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void>;
@@ -60,4 +148,5 @@ export declare const authService: {
         usedAt: Date | null;
     }>;
 };
+export {};
 //# sourceMappingURL=auth.service.d.ts.map

@@ -5,7 +5,7 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { mediaService } from '../services/media.service';
 import { upload } from '../middleware/upload';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
-import { s3, storageBucket } from '../config/storage';
+import { r2, storageBucket } from '../config/storage';
 import { Readable } from 'stream';
 
 export const uploadMiddleware = upload.single('file');
@@ -138,25 +138,25 @@ export const mediaController = {
     res.redirect(file.url);
   }),
 
-  // Proxy S3 object by key — avoids needing public bucket access
+  // Proxy R2 object by key; avoids needing public bucket access.
   proxyFile: asyncHandler(async (req: Request, res: Response) => {
     const raw = req.params['key'];
     // Support both encoded (feed%2Ffile.jpg) and decoded (feed/file.jpg) keys
     const key = raw.includes('%') ? decodeURIComponent(raw) : raw;
     try {
       const command = new GetObjectCommand({ Bucket: storageBucket, Key: key });
-      const s3Res = await s3.send(command);
-      if (s3Res.ContentType) res.setHeader('Content-Type', s3Res.ContentType);
-      if (s3Res.ContentLength) res.setHeader('Content-Length', s3Res.ContentLength);
+      const r2Res = await r2.send(command);
+      if (r2Res.ContentType) res.setHeader('Content-Type', r2Res.ContentType);
+      if (r2Res.ContentLength) res.setHeader('Content-Length', r2Res.ContentLength);
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-      const stream = s3Res.Body as Readable;
+      const stream = r2Res.Body as Readable;
       stream.on('error', (err) => {
         console.error('[proxyFile] stream error for key:', key, err.message);
         if (!res.headersSent) res.status(500).end();
       });
       stream.pipe(res);
     } catch (err: any) {
-      console.error('[proxyFile] S3 error for key:', key, err?.name, err?.message);
+      console.error('[proxyFile] R2 error for key:', key, err?.name, err?.message);
       throw ApiError.notFound('File not found');
     }
   }),

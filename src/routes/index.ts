@@ -54,7 +54,7 @@ router.use('/search', searchRoutes);
 // Media
 router.use('/media', mediaRoutes);
 
-// Story Upload (isolated — stories/ S3 folder only)
+// Story Upload (isolated R2 stories/ prefix)
 router.use('/story-upload', storyUploadRoutes);
 
 // Market Rates

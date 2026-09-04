@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.storyS3Service = void 0;
+exports.storyR2Service = void 0;
 const client_s3_1 = require("@aws-sdk/client-s3");
 const storage_1 = require("../config/storage");
 const config_1 = require("../config");
@@ -18,7 +18,7 @@ function buildKey(originalname) {
 function proxyUrl(key) {
     return `${config_1.config.APP_URL}/api/v1/story-upload/proxy/${encodeURIComponent(key)}`;
 }
-exports.storyS3Service = {
+exports.storyR2Service = {
     validate(file) {
         if (!ALLOWED_MIME_TYPES.has(file.mimetype.toLowerCase())) {
             throw new Error(`Unsupported file type: ${file.mimetype}. Allowed: jpg, jpeg, png, webp, gif, mp4, mov, avi, webm`);
@@ -28,9 +28,9 @@ exports.storyS3Service = {
         }
     },
     async upload(file) {
-        exports.storyS3Service.validate(file);
+        exports.storyR2Service.validate(file);
         const key = buildKey(file.originalname);
-        await storage_1.s3.send(new client_s3_1.PutObjectCommand({
+        await storage_1.r2.send(new client_s3_1.PutObjectCommand({
             Bucket: storage_1.storageBucket,
             Key: key,
             Body: file.buffer,
@@ -39,4 +39,4 @@ exports.storyS3Service = {
         return { key, url: proxyUrl(key) };
     },
 };
-//# sourceMappingURL=story.s3.service.js.map
+//# sourceMappingURL=story.r2.service.js.map

@@ -3,7 +3,7 @@ import { config } from './config/index';
 import { logger } from './config/logger';
 import { prisma } from './config/database';
 import { redis } from './config/redis';
-import { verifyS3Access } from './config/storage';
+import { verifyR2Access } from './config/storage';
 import { initSocketServer } from './sockets/index';
 import { initWorkers } from './jobs/index';
 import { buildApp } from './app';
@@ -18,8 +18,8 @@ async function bootstrap() {
     await redis.ping();
     logger.info('Connected to Redis');
 
-    // 3. Verify S3 credentials & bucket access
-    await verifyS3Access();
+    // 3. Verify Cloudflare R2 credentials & bucket access
+    await verifyR2Access();
 
     // 4. Start BullMQ workers
     initWorkers();

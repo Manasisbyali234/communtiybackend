@@ -6,6 +6,8 @@ export declare const authController: {
     refresh: (req: Request, res: Response, next: import("express").NextFunction) => void;
     verifyEmail: (req: Request, res: Response, next: import("express").NextFunction) => void;
     resendVerification: (req: Request, res: Response, next: import("express").NextFunction) => void;
+    verifyPhone: (req: Request, res: Response, next: import("express").NextFunction) => void;
+    resendPhoneOtp: (req: Request, res: Response, next: import("express").NextFunction) => void;
     forgotPassword: (req: Request, res: Response, next: import("express").NextFunction) => void;
     resetPassword: (req: Request, res: Response, next: import("express").NextFunction) => void;
     changePassword: (req: Request, res: Response, next: import("express").NextFunction) => void;

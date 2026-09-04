@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { MatrimonyApprovalStatus, Role } from '@prisma/client';
 import { prisma } from '../config/database';
-import { s3, storageBucket } from '../config/storage';
+import { r2, storageBucket } from '../config/storage';
 import { config } from '../config';
 import { ApiResponse } from '../utils/ApiResponse';
 import { ApiError } from '../utils/ApiError';
@@ -549,7 +549,7 @@ export const uploadPhoto = asyncHandler(async (req: Request, res: Response) => {
   const ext = path.extname(req.file.originalname) || '.jpg';
   const key = `matrimony/${crypto.randomUUID()}${ext}`;
 
-  await s3.send(new PutObjectCommand({
+  await r2.send(new PutObjectCommand({
     Bucket: storageBucket, Key: key,
     Body: req.file.buffer, ContentType: req.file.mimetype,
   }));
@@ -572,7 +572,7 @@ export const deletePhoto = asyncHandler(async (req: Request, res: Response) => {
 
   const key = _keyFromUrl(photoUrl);
   if (key) {
-    try { await s3.send(new DeleteObjectCommand({ Bucket: storageBucket, Key: key })); } catch { }
+    try { await r2.send(new DeleteObjectCommand({ Bucket: storageBucket, Key: key })); } catch { }
   }
 
   const updatedPhotos = profile.photos.filter(p => p !== photoUrl);

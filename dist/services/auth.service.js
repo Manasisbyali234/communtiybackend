@@ -9,10 +9,79 @@ const token_service_1 = require("./token.service");
 const email_service_1 = require("./email.service");
 const index_1 = require("../config/index");
 const logger_1 = require("../config/logger");
+const clean = (value) => {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : undefined;
+};
+const buildRegistrationProfileData = (data) => {
+    const nativePlace = clean(data.nativePlace);
+    const city = clean(data.city);
+    return {
+        email: data.email.trim().toLowerCase(),
+        username: data.username.trim().toLowerCase(),
+        displayName: data.displayName.trim(),
+        phone: clean(data.phone),
+        familyName: clean(data.familyName),
+        dob: clean(data.dob),
+        gender: clean(data.gender),
+        country: clean(data.country),
+        state: clean(data.state),
+        district: clean(data.district),
+        city,
+        nativePlace,
+        currentLocation: clean(data.currentLocation) ?? city,
+        village: nativePlace ?? city,
+        occupation: clean(data.occupation),
+        profession: clean(data.profession),
+        company: clean(data.company),
+        education: clean(data.education),
+        skills: clean(data.skills),
+        phoneVerified: false,
+        approvalStatus: 'PENDING',
+        rejectionReason: undefined,
+        approvalHistory: [
+            {
+                status: 'PENDING',
+                date: new Date().toISOString(),
+            },
+        ],
+    };
+};
+const userAuthSelect = {
+    id: true,
+    email: true,
+    username: true,
+    displayName: true,
+    phone: true,
+    familyName: true,
+    dob: true,
+    gender: true,
+    country: true,
+    state: true,
+    district: true,
+    city: true,
+    nativePlace: true,
+    currentLocation: true,
+    village: true,
+    occupation: true,
+    profession: true,
+    company: true,
+    education: true,
+    skills: true,
+    role: true,
+    isVerified: true,
+    isActive: true,
+    isBanned: true,
+    phoneVerified: true,
+    approvalStatus: true,
+    rejectionReason: true,
+    approvalHistory: true,
+};
 exports.authService = {
     async register(data) {
+        const profileData = buildRegistrationProfileData(data);
         const existing = await database_1.prisma.user.findFirst({
-            where: { OR: [{ email: data.email }, { username: data.username }] },
+            where: { OR: [{ email: profileData.email }, { username: profileData.username }] },
         });
         if (existing) {
             if (!existing.isActive) {
@@ -21,18 +90,17 @@ exports.authService = {
                 const user = await database_1.prisma.user.update({
                     where: { id: existing.id },
                     data: {
-                        email: data.email,
-                        username: data.username,
-                        displayName: data.displayName,
+                        ...profileData,
                         passwordHash,
                         isActive: true,
+                        isVerified: false,
                     },
-                    select: { id: true, email: true, username: true, displayName: true, role: true, isVerified: true },
+                    select: userAuthSelect,
                 });
                 const tokens = await token_service_1.tokenService.generateTokenPair(user);
                 return { user, ...tokens };
             }
-            const field = existing.email === data.email ? 'email' : 'username';
+            const field = existing.email === profileData.email ? 'email' : 'username';
             throw ApiError_1.ApiError.conflict(`This ${field} is already registered`);
         }
         const passwordHash = await (0, password_1.hashPassword)(data.password);
@@ -42,13 +110,11 @@ exports.authService = {
             : undefined;
         const user = await database_1.prisma.user.create({
             data: {
-                email: data.email,
-                username: data.username,
-                displayName: data.displayName,
+                ...profileData,
                 passwordHash,
                 ...(referredById ? { referredById } : {}),
             },
-            select: { id: true, email: true, username: true, displayName: true, role: true, isVerified: true },
+            select: userAuthSelect,
         });
         // Create OTP and send email non-blocking (SMTP failure won't break registration)
         const otp = await this.createOtp(user.id, 'VERIFY_EMAIL');
@@ -63,6 +129,11 @@ exports.authService = {
                 id: true, email: true, username: true, displayName: true,
                 role: true, isVerified: true, isActive: true, isBanned: true,
                 banReason: true, banExpiresAt: true, passwordHash: true, avatarUrl: true, deletedAt: true,
+                phone: true, familyName: true, dob: true, gender: true, country: true,
+                state: true, district: true, city: true, nativePlace: true,
+                currentLocation: true, village: true, occupation: true, profession: true,
+                company: true, education: true, skills: true, phoneVerified: true,
+                approvalStatus: true, rejectionReason: true, approvalHistory: true,
             },
         });
         if (!user)
@@ -126,6 +197,13 @@ exports.authService = {
         const code = await this.createOtp(userId, 'VERIFY_EMAIL');
         await email_service_1.emailService.sendOtp(user.email, code, 'VERIFY_EMAIL');
     },
+    async verifyPhone(userId, phone) {
+        return database_1.prisma.user.update({
+            where: { id: userId },
+            data: { phone, phoneVerified: true },
+            select: userAuthSelect,
+        });
+    },
     async forgotPassword(email) {
         const user = await database_1.prisma.user.findUnique({ where: { email } });
         if (!user)
@@ -168,7 +246,11 @@ exports.authService = {
     async verifyOtpLogin(email, code) {
         const user = await database_1.prisma.user.findUnique({
             where: { email },
-            select: { id: true, email: true, username: true, displayName: true, role: true, isVerified: true, isActive: true, isBanned: true, avatarUrl: true },
+            select: {
+                ...userAuthSelect,
+                isBanned: true,
+                avatarUrl: true,
+            },
         });
         if (!user || !user.isActive)
             throw ApiError_1.ApiError.unauthorized('Invalid or expired code');

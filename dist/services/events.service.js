@@ -24,11 +24,11 @@ function normalizeCoverUrl(coverUrl) {
             console.log('[normalizeCoverUrl] rewrote absolute proxy URL to relative:', relativeProxyUrl);
             return relativeProxyUrl;
         }
-        // Legacy direct S3 URL — extract the key and rewrite to relative proxy path
+        // Legacy direct S3/R2 URL: extract the key and rewrite to relative proxy path.
         if (url.hostname.includes('amazonaws.com')) {
             const key = url.pathname.replace(/^\//, '');
             const relativeProxyUrl = `/api/v1/media/proxy/${encodeURIComponent(key)}`;
-            console.log('[normalizeCoverUrl] rewrote legacy S3 URL to relative proxy:', relativeProxyUrl);
+            console.log('[normalizeCoverUrl] rewrote legacy storage URL to relative proxy:', relativeProxyUrl);
             return relativeProxyUrl;
         }
     }

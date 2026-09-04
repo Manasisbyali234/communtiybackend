@@ -5,17 +5,17 @@ import { ApiResponse } from '../utils/ApiResponse';
 import { ApiError } from '../utils/ApiError';
 import { asyncHandler } from '../utils/asyncHandler';
 import { storyUploadService } from './story.upload.service';
-import { storyS3Service } from './story.s3.service';
-import { s3, storageBucket } from '../config/storage';
+import { storyR2Service } from './story.r2.service';
+import { r2, storageBucket } from '../config/storage';
 import { MediaType } from '@prisma/client';
 
 export const storyUploadController = {
   // POST /api/v1/story-upload/upload
-  // Uploads file to stories/ in S3 and returns the proxy URL (no DB record yet).
+  // Uploads file to stories/ in R2 and returns the proxy URL (no DB record yet).
   uploadMedia: asyncHandler(async (req: Request, res: Response) => {
     if (!req.file) throw ApiError.badRequest('No file provided');
 
-    storyS3Service.validate({
+    storyR2Service.validate({
       buffer: req.file.buffer,
       originalname: req.file.originalname,
       mimetype: req.file.mimetype,
@@ -33,7 +33,7 @@ export const storyUploadController = {
   }),
 
   // POST /api/v1/story-upload/create
-  // Uploads file to stories/ in S3 AND creates the Story DB record atomically.
+  // Uploads file to stories/ in R2 AND creates the Story DB record atomically.
   uploadAndCreate: asyncHandler(async (req: Request, res: Response) => {
     if (!req.file) throw ApiError.badRequest('No file provided');
 
@@ -55,16 +55,16 @@ export const storyUploadController = {
   }),
 
   // GET /api/v1/story-upload/proxy/:key(*)
-  // Proxies S3 objects so the bucket doesn't need public access.
+  // Proxies R2 objects so the bucket doesn't need public access.
   proxyMedia: asyncHandler(async (req: Request, res: Response) => {
     const key = decodeURIComponent(req.params['key'] as string);
     try {
       const command = new GetObjectCommand({ Bucket: storageBucket, Key: key });
-      const s3Res = await s3.send(command);
-      if (s3Res.ContentType) res.setHeader('Content-Type', s3Res.ContentType);
-      if (s3Res.ContentLength) res.setHeader('Content-Length', s3Res.ContentLength);
+      const r2Res = await r2.send(command);
+      if (r2Res.ContentType) res.setHeader('Content-Type', r2Res.ContentType);
+      if (r2Res.ContentLength) res.setHeader('Content-Length', r2Res.ContentLength);
       res.setHeader('Cache-Control', 'public, max-age=86400');
-      (s3Res.Body as Readable).pipe(res);
+      (r2Res.Body as Readable).pipe(res);
     } catch {
       throw ApiError.notFound('Story media not found');
     }

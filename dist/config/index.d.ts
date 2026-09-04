@@ -16,6 +16,12 @@ export declare const config: {
     APPLE_TEAM_ID?: string;
     APPLE_KEY_ID?: string;
     APPLE_PRIVATE_KEY?: string;
+    R2_ENDPOINT?: string;
+    R2_REGION?: string;
+    R2_ACCESS_KEY_ID?: string;
+    R2_SECRET_ACCESS_KEY?: string;
+    R2_BUCKET_NAME?: string;
+    R2_PUBLIC_URL?: string;
     STORAGE_REGION?: string;
     STORAGE_ACCESS_KEY?: string;
     STORAGE_SECRET_KEY?: string;

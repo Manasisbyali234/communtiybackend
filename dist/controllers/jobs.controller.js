@@ -66,7 +66,7 @@ exports.uploadEmployerLogo = (0, asyncHandler_1.asyncHandler)(async (req, res) =
         throw new ApiError_1.ApiError(400, 'Logo must be under 5MB');
     const ext = path_1.default.extname(req.file.originalname) || '.jpg';
     const key = `employers/${crypto_1.default.randomUUID()}${ext}`;
-    await storage_1.s3.send(new client_s3_1.PutObjectCommand({ Bucket: storage_1.storageBucket, Key: key, Body: req.file.buffer, ContentType: req.file.mimetype }));
+    await storage_1.r2.send(new client_s3_1.PutObjectCommand({ Bucket: storage_1.storageBucket, Key: key, Body: req.file.buffer, ContentType: req.file.mimetype }));
     const url = `${config_1.config.APP_URL}/api/v1/media/proxy/${encodeURIComponent(key)}`;
     res.json(new ApiResponse_1.ApiResponse(200, { url }, 'Logo uploaded'));
 });
@@ -81,7 +81,7 @@ exports.uploadJobLogo = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         throw new ApiError_1.ApiError(400, 'Logo must be under 5MB');
     const ext = path_1.default.extname(req.file.originalname) || '.jpg';
     const key = `jobs/${crypto_1.default.randomUUID()}${ext}`;
-    await storage_1.s3.send(new client_s3_1.PutObjectCommand({
+    await storage_1.r2.send(new client_s3_1.PutObjectCommand({
         Bucket: storage_1.storageBucket,
         Key: key,
         Body: req.file.buffer,
@@ -216,7 +216,7 @@ exports.uploadResume = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         throw new ApiError_1.ApiError(400, 'Resume must be under 5MB');
     const ext = path_1.default.extname(req.file.originalname) || '.pdf';
     const key = `resumes/${userId}/${crypto_1.default.randomUUID()}${ext}`;
-    await storage_1.s3.send(new client_s3_1.PutObjectCommand({
+    await storage_1.r2.send(new client_s3_1.PutObjectCommand({
         Bucket: storage_1.storageBucket,
         Key: key,
         Body: req.file.buffer,

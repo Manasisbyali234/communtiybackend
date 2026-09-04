@@ -20,7 +20,7 @@ function multerErrHandler(err: any, _req: Request, _res: Response, next: NextFun
 
 router.use(auth);
 
-// Upload media only → returns S3 URL (frontend then calls POST /stories with the URL)
+// Upload media only -> returns R2-backed URL (frontend then calls POST /stories with the URL)
 router.post(
   '/upload',
   storyUpload.single('file'),

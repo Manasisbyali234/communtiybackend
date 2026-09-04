@@ -1,5 +1,5 @@
 import { prisma } from '../config/database';
-import { storyS3Service, StoryFileInput } from './story.s3.service';
+import { storyR2Service, StoryFileInput } from './story.r2.service';
 import { MediaType } from '@prisma/client';
 
 export const storyUploadService = {
@@ -8,10 +8,10 @@ export const storyUploadService = {
     authorId: string,
     mediaType: MediaType
   ) {
-    // 1. Upload to S3 stories/ folder
-    const { url } = await storyS3Service.upload(file);
+    // 1. Upload to the R2 stories/ prefix
+    const { url } = await storyR2Service.upload(file);
 
-    // 2. Create Story record with the S3 URL
+    // 2. Create Story record with the R2-backed proxy URL
     const STORY_TTL_SECONDS = 24 * 60 * 60;
     const expiresAt = new Date(Date.now() + STORY_TTL_SECONDS * 1000);
 
@@ -24,8 +24,8 @@ export const storyUploadService = {
         },
       });
     } catch (dbErr) {
-      // Story DB insert failed — nothing to clean up in S3 (S3 objects are cheap; orphan cleanup
-      // can be handled by a lifecycle rule on the stories/ prefix). Re-throw so the controller
+      // Story DB insert failed; orphan cleanup can be handled by a lifecycle rule
+      // on the stories/ prefix. Re-throw so the controller
       // returns a proper error to the client.
       throw dbErr;
     }
@@ -34,6 +34,6 @@ export const storyUploadService = {
   },
 
   async uploadOnly(file: StoryFileInput) {
-    return storyS3Service.upload(file);
+    return storyR2Service.upload(file);
   },
 };

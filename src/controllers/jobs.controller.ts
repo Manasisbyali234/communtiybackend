@@ -3,7 +3,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { prisma } from '../config/database';
-import { s3, storageBucket } from '../config/storage';
+import { r2, storageBucket } from '../config/storage';
 import { config } from '../config';
 import { ApiResponse } from '../utils/ApiResponse';
 import { ApiError } from '../utils/ApiError';
@@ -63,7 +63,7 @@ export const uploadEmployerLogo = asyncHandler(async (req: Request, res: Respons
   if (req.file.size > 5 * 1024 * 1024) throw new ApiError(400, 'Logo must be under 5MB');
   const ext = path.extname(req.file.originalname) || '.jpg';
   const key = `employers/${crypto.randomUUID()}${ext}`;
-  await s3.send(new PutObjectCommand({ Bucket: storageBucket, Key: key, Body: req.file.buffer, ContentType: req.file.mimetype }));
+  await r2.send(new PutObjectCommand({ Bucket: storageBucket, Key: key, Body: req.file.buffer, ContentType: req.file.mimetype }));
   const url = `${config.APP_URL}/api/v1/media/proxy/${encodeURIComponent(key)}`;
   res.json(new ApiResponse(200, { url }, 'Logo uploaded'));
 });
@@ -79,7 +79,7 @@ export const uploadJobLogo = asyncHandler(async (req: Request, res: Response) =>
   const ext = path.extname(req.file.originalname) || '.jpg';
   const key = `jobs/${crypto.randomUUID()}${ext}`;
 
-  await s3.send(new PutObjectCommand({
+  await r2.send(new PutObjectCommand({
     Bucket: storageBucket,
     Key: key,
     Body: req.file.buffer,
@@ -229,7 +229,7 @@ export const uploadResume = asyncHandler(async (req: Request, res: Response) => 
   const ext = path.extname(req.file.originalname) || '.pdf';
   const key = `resumes/${userId}/${crypto.randomUUID()}${ext}`;
 
-  await s3.send(new PutObjectCommand({
+  await r2.send(new PutObjectCommand({
     Bucket: storageBucket,
     Key: key,
     Body: req.file.buffer,

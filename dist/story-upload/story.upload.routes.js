@@ -20,7 +20,7 @@ function multerErrHandler(err, _req, _res, next) {
     next(err);
 }
 router.use(auth_1.auth);
-// Upload media only → returns S3 URL (frontend then calls POST /stories with the URL)
+// Upload media only -> returns R2-backed URL (frontend then calls POST /stories with the URL)
 router.post('/upload', story_upload_middleware_1.storyUpload.single('file'), multerErrHandler, story_upload_controller_1.storyUploadController.uploadMedia);
 // Upload + create story in one request
 router.post('/create', story_upload_middleware_1.storyUpload.single('file'), multerErrHandler, story_upload_controller_1.storyUploadController.uploadAndCreate);

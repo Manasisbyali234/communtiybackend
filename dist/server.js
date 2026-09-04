@@ -20,8 +20,8 @@ async function bootstrap() {
         // 2. Verify Redis connection
         await redis_1.redis.ping();
         logger_1.logger.info('Connected to Redis');
-        // 3. Verify S3 credentials & bucket access
-        await (0, storage_1.verifyS3Access)();
+        // 3. Verify Cloudflare R2 credentials & bucket access
+        await (0, storage_1.verifyR2Access)();
         // 4. Start BullMQ workers
         (0, index_3.initWorkers)();
         // 5. Build Express app & HTTP server

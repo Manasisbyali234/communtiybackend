@@ -12,7 +12,14 @@ exports.usersService = {
             where: { id: userId },
             select: {
                 id: true, email: true, username: true, displayName: true, bio: true,
-                avatarUrl: true, bannerUrl: true, coverImage: true, village: true, occupation: true, languages: true, interests: true, role: true, isVerified: true, createdAt: true,
+                avatarUrl: true, bannerUrl: true, coverImage: true, familyName: true,
+                dob: true, gender: true, country: true, state: true, district: true,
+                city: true, nativePlace: true, currentLocation: true, village: true,
+                occupation: true, profession: true, company: true, education: true,
+                skills: true, languages: true, interests: true, role: true,
+                isVerified: true, phone: true, phoneVerified: true, approvalStatus: true,
+                rejectionReason: true, approvalHistory: true, isActive: true, isBanned: true,
+                createdAt: true,
                 _count: {
                     select: {
                         followers: true,
@@ -37,10 +44,36 @@ exports.usersService = {
         };
     },
     async updateMe(userId, data) {
+        const current = await database_1.prisma.user.findUnique({
+            where: { id: userId },
+            select: { approvalStatus: true, approvalHistory: true },
+        });
+        const shouldResubmit = current?.approvalStatus === 'REJECTED' || current?.approvalStatus === 'PENDING' || current?.approvalStatus === 'RESUBMITTED';
+        const history = Array.isArray(current?.approvalHistory) ? current.approvalHistory : [];
         return database_1.prisma.user.update({
             where: { id: userId },
-            data,
-            select: { id: true, username: true, displayName: true, bio: true, avatarUrl: true, bannerUrl: true, coverImage: true, village: true, occupation: true, languages: true, interests: true },
+            data: {
+                ...data,
+                ...(shouldResubmit
+                    ? {
+                        approvalStatus: 'RESUBMITTED',
+                        rejectionReason: null,
+                        approvalHistory: [
+                            ...history,
+                            { status: 'RESUBMITTED', date: new Date().toISOString() },
+                        ],
+                    }
+                    : {}),
+            },
+            select: {
+                id: true, username: true, displayName: true, bio: true,
+                avatarUrl: true, bannerUrl: true, coverImage: true, familyName: true,
+                dob: true, gender: true, country: true, state: true, district: true,
+                city: true, nativePlace: true, currentLocation: true, village: true,
+                occupation: true, profession: true, company: true, education: true,
+                skills: true, languages: true, interests: true, approvalStatus: true,
+                rejectionReason: true, approvalHistory: true,
+            },
         });
     },
     async deactivateMe(userId, reason) {
@@ -67,8 +100,13 @@ exports.usersService = {
             where: { id: userId, isActive: true },
             select: {
                 id: true, username: true, displayName: true, bio: true,
-                avatarUrl: true, bannerUrl: true, coverImage: true, village: true, occupation: true,
-                languages: true, interests: true, isVerified: true, role: true, createdAt: true,
+                avatarUrl: true, bannerUrl: true, coverImage: true, familyName: true,
+                dob: true, gender: true, country: true, state: true, district: true,
+                city: true, nativePlace: true, currentLocation: true, village: true,
+                occupation: true, profession: true, company: true, education: true,
+                skills: true, languages: true, interests: true, isVerified: true,
+                role: true, phoneVerified: true, approvalStatus: true,
+                rejectionReason: true, approvalHistory: true, createdAt: true,
                 _count: {
                     select: {
                         followers: true,

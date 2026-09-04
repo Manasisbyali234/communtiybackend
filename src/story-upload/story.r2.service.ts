@@ -1,5 +1,5 @@
 import { PutObjectCommand } from '@aws-sdk/client-s3';
-import { s3, storageBucket } from '../config/storage';
+import { r2, storageBucket } from '../config/storage';
 import { config } from '../config';
 
 const STORY_FOLDER = 'stories';
@@ -33,7 +33,7 @@ function proxyUrl(key: string): string {
   return `${config.APP_URL}/api/v1/story-upload/proxy/${encodeURIComponent(key)}`;
 }
 
-export const storyS3Service = {
+export const storyR2Service = {
   validate(file: StoryFileInput): void {
     if (!ALLOWED_MIME_TYPES.has(file.mimetype.toLowerCase())) {
       throw new Error(
@@ -46,10 +46,10 @@ export const storyS3Service = {
   },
 
   async upload(file: StoryFileInput): Promise<StoryUploadResult> {
-    storyS3Service.validate(file);
+    storyR2Service.validate(file);
     const key = buildKey(file.originalname);
 
-    await s3.send(
+    await r2.send(
       new PutObjectCommand({
         Bucket: storageBucket,
         Key: key,

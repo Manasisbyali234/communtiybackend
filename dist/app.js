@@ -10,12 +10,50 @@ const helmet_1 = __importDefault(require("helmet"));
 const compression_1 = __importDefault(require("compression"));
 const path_1 = __importDefault(require("path"));
 const index_1 = require("./config/index");
+const client_s3_1 = require("@aws-sdk/client-s3");
+const storage_1 = require("./config/storage");
 const rateLimiter_1 = require("./middleware/rateLimiter");
 const errorHandler_1 = require("./middleware/errorHandler");
 const notFound_1 = require("./middleware/notFound");
 const requestLogger_1 = require("./middleware/requestLogger");
 const swagger_1 = require("./docs/swagger");
 const routes_1 = __importDefault(require("./routes"));
+const ApiError_1 = require("./utils/ApiError");
+function inferContentType(key) {
+    const ext = path_1.default.extname(key).toLowerCase();
+    const mime = {
+        '.apk': 'application/vnd.android.package-archive',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp',
+        '.svg': 'image/svg+xml',
+        '.mp4': 'video/mp4',
+        '.mov': 'video/quicktime',
+        '.webm': 'video/webm',
+        '.pdf': 'application/pdf',
+    };
+    return mime[ext];
+}
+async function proxyR2Object(key, res, next) {
+    try {
+        const object = await storage_1.r2.send(new client_s3_1.GetObjectCommand({ Bucket: storage_1.storageBucket, Key: key }));
+        const contentType = object.ContentType ?? inferContentType(key);
+        if (contentType)
+            res.setHeader('Content-Type', contentType);
+        if (object.ContentLength)
+            res.setHeader('Content-Length', object.ContentLength);
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        const stream = object.Body;
+        stream.on('error', next);
+        stream.pipe(res);
+    }
+    catch (err) {
+        console.error('[uploadsProxy] R2 error for key:', key, err?.name, err?.message);
+        next(ApiError_1.ApiError.notFound('File not found'));
+    }
+}
 function buildApp() {
     const app = (0, express_1.default)();
     // Trust proxy (required when behind nginx/load balancer)
@@ -70,7 +108,7 @@ function buildApp() {
     // APK download landing page
     app.get('/download', (req, res) => {
         const ref = req.query.ref ? `?ref=${req.query.ref}` : '';
-        const APK_URL = 'https://community-api.metromindz.com/uploads/app-release.apk';
+        const APK_URL = `${index_1.config.APP_URL}/uploads/app-release.apk`;
         const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.mmdevteam.communityapp';
         res.setHeader('Content-Type', 'text/html');
         res.send(`<!DOCTYPE html>
@@ -111,19 +149,14 @@ function buildApp() {
 </body>
 </html>`);
     });
-    // 6. Static uploads
-    app.use('/uploads', express_1.default.static(path_1.default.join(__dirname, '../uploads'), {
-        setHeaders(res, filePath) {
-            const ext = path_1.default.extname(filePath).toLowerCase();
-            const mime = {
-                '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
-                '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
-                '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm',
-            };
-            if (mime[ext])
-                res.setHeader('Content-Type', mime[ext]);
-        },
-    }));
+    // 6. R2-backed uploads prefix. No files are served from the Docker/container filesystem.
+    app.get('/uploads/*', (req, res, next) => {
+        const requestedKey = req.params[0];
+        if (!requestedKey)
+            return next(ApiError_1.ApiError.notFound('File not found'));
+        const key = `uploads/${requestedKey}`;
+        void proxyR2Object(key, res, next);
+    });
     // 7. Routes
     app.use('/api/v1', routes_1.default);
     // 7. Swagger / OpenAPI Docs

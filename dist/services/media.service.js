@@ -11,7 +11,7 @@ const database_1 = require("../config/database");
 const ApiError_1 = require("../utils/ApiError");
 const storage_1 = require("../config/storage");
 const config_1 = require("../config");
-// Serve images through the backend proxy so S3 bucket doesn't need public access
+// Serve files through the backend proxy so the R2 bucket doesn't need public access.
 const proxyUrl = (key) => `${config_1.config.APP_URL}/api/v1/media/proxy/${encodeURIComponent(key)}`;
 const ALLOWED_MIME_TYPES = new Set([
     'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
@@ -29,7 +29,7 @@ exports.mediaService = {
         const extension = path_1.default.extname(file.originalname);
         const filename = `${crypto_1.default.randomUUID()}${extension}`;
         const key = `uploads/${filename}`;
-        return this._uploadToS3(file, key, uploadedBy);
+        return this._uploadToStorage(file, key, uploadedBy);
     },
     async uploadEventImage(file, uploadedBy) {
         if (file.size > MAX_SIZE)
@@ -39,7 +39,7 @@ exports.mediaService = {
         const extension = path_1.default.extname(file.originalname);
         const filename = `${crypto_1.default.randomUUID()}${extension}`;
         const key = `events/${filename}`;
-        await storage_1.s3.send(new client_s3_1.PutObjectCommand({
+        await storage_1.r2.send(new client_s3_1.PutObjectCommand({
             Bucket: storage_1.storageBucket,
             Key: key,
             Body: file.buffer,
@@ -47,7 +47,7 @@ exports.mediaService = {
         }));
         // Store a relative proxy URL so any client IP resolves it correctly via toAbs()
         const url = `/api/v1/media/proxy/${encodeURIComponent(key)}`;
-        console.log('[uploadEventImage] S3 key:', key, '| db url:', url);
+        console.log('[uploadEventImage] R2 key:', key, '| db url:', url);
         const mediaFile = await database_1.prisma.mediaFile.create({
             data: { filename: key, originalName: file.originalname, mimeType: file.mimetype, fileSize: file.size, url, uploadedBy },
         });
@@ -61,7 +61,7 @@ exports.mediaService = {
         }
         const extension = path_1.default.extname(file.originalname) || '.jpg';
         const key = `communities/${uploadedBy}/${crypto_1.default.randomUUID()}${extension}`;
-        return this._uploadToS3(file, key, uploadedBy);
+        return this._uploadToStorage(file, key, uploadedBy);
     },
     async uploadProfilePhoto(file, uploadedBy) {
         if (file.size > MAX_SIZE)
@@ -70,7 +70,7 @@ exports.mediaService = {
             throw ApiError_1.ApiError.badRequest('File type not allowed.');
         const extension = path_1.default.extname(file.originalname) || '.jpg';
         const key = `profile/profile-photo-${uploadedBy}-${Date.now()}${extension}`;
-        return this._uploadProfileToS3(file, key, uploadedBy);
+        return this._uploadProfileToStorage(file, key, uploadedBy);
     },
     async uploadCoverPhoto(file, uploadedBy) {
         if (file.size > MAX_SIZE)
@@ -79,7 +79,7 @@ exports.mediaService = {
             throw ApiError_1.ApiError.badRequest('File type not allowed.');
         const extension = path_1.default.extname(file.originalname) || '.jpg';
         const key = `profile/cover-photo-${uploadedBy}-${Date.now()}${extension}`;
-        return this._uploadProfileToS3(file, key, uploadedBy);
+        return this._uploadProfileToStorage(file, key, uploadedBy);
     },
     async uploadChatFile(file, uploadedBy) {
         if (file.size > MAX_SIZE)
@@ -102,7 +102,7 @@ exports.mediaService = {
         const extension = path_1.default.extname(file.originalname) || '';
         const filename = `${crypto_1.default.randomUUID()}${extension}`;
         const key = `chat/${filename}`;
-        await storage_1.s3.send(new client_s3_1.PutObjectCommand({
+        await storage_1.r2.send(new client_s3_1.PutObjectCommand({
             Bucket: storage_1.storageBucket,
             Key: key,
             Body: file.buffer,
@@ -130,7 +130,7 @@ exports.mediaService = {
             throw ApiError_1.ApiError.badRequest('File type not allowed.');
         const extension = path_1.default.extname(file.originalname) || '.jpg';
         const key = `feed/post-${uploadedBy}-${Date.now()}${extension}`;
-        return this._uploadToS3(file, key, uploadedBy);
+        return this._uploadToStorage(file, key, uploadedBy);
     },
     async uploadPostVideo(file, uploadedBy) {
         const VIDEO_MIME_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm']);
@@ -144,7 +144,7 @@ exports.mediaService = {
         const extension = path_1.default.extname(file.originalname) || '.mp4';
         const filename = `video-${crypto_1.default.randomUUID()}${extension}`;
         const key = `feed/${filename}`;
-        await storage_1.s3.send(new client_s3_1.PutObjectCommand({
+        await storage_1.r2.send(new client_s3_1.PutObjectCommand({
             Bucket: storage_1.storageBucket,
             Key: key,
             Body: file.buffer,
@@ -158,8 +158,8 @@ exports.mediaService = {
     },
     // Profile images use a relative proxy path so any client IP can resolve them correctly.
     // The frontend's toAbs() in authStore prepends the correct base URL at runtime.
-    async _uploadProfileToS3(file, key, uploadedBy) {
-        await storage_1.s3.send(new client_s3_1.PutObjectCommand({
+    async _uploadProfileToStorage(file, key, uploadedBy) {
+        await storage_1.r2.send(new client_s3_1.PutObjectCommand({
             Bucket: storage_1.storageBucket,
             Key: key,
             Body: file.buffer,
@@ -172,8 +172,8 @@ exports.mediaService = {
         });
         return { id: mediaFile.id, filename: key, url };
     },
-    async _uploadToS3(file, key, uploadedBy) {
-        await storage_1.s3.send(new client_s3_1.PutObjectCommand({
+    async _uploadToStorage(file, key, uploadedBy) {
+        await storage_1.r2.send(new client_s3_1.PutObjectCommand({
             Bucket: storage_1.storageBucket,
             Key: key,
             Body: file.buffer,
@@ -203,7 +203,7 @@ exports.mediaService = {
         const file = await database_1.prisma.mediaFile.findFirst({ where, select: { id: true, filename: true } });
         if (!file)
             throw ApiError_1.ApiError.notFound('File not found or you do not have permission to delete it.');
-        await storage_1.s3.send(new client_s3_1.DeleteObjectCommand({ Bucket: storage_1.storageBucket, Key: file.filename }));
+        await storage_1.r2.send(new client_s3_1.DeleteObjectCommand({ Bucket: storage_1.storageBucket, Key: file.filename }));
         await database_1.prisma.mediaFile.delete({ where: { id } });
     },
     async getFileMetadata(id) {

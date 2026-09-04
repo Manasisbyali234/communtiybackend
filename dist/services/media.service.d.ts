@@ -51,12 +51,12 @@ export declare const mediaService: {
         mimeType: string;
         fileSize: number;
     }>;
-    _uploadProfileToS3(file: UploadedFile, key: string, uploadedBy: string): Promise<{
+    _uploadProfileToStorage(file: UploadedFile, key: string, uploadedBy: string): Promise<{
         id: string;
         filename: string;
         url: string;
     }>;
-    _uploadToS3(file: UploadedFile, key: string, uploadedBy: string): Promise<{
+    _uploadToStorage(file: UploadedFile, key: string, uploadedBy: string): Promise<{
         id: string;
         filename: string;
         url: string;

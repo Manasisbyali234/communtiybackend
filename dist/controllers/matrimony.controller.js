@@ -508,7 +508,7 @@ exports.uploadPhoto = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     }
     const ext = path_1.default.extname(req.file.originalname) || '.jpg';
     const key = `matrimony/${crypto_1.default.randomUUID()}${ext}`;
-    await storage_1.s3.send(new client_s3_1.PutObjectCommand({
+    await storage_1.r2.send(new client_s3_1.PutObjectCommand({
         Bucket: storage_1.storageBucket, Key: key,
         Body: req.file.buffer, ContentType: req.file.mimetype,
     }));
@@ -531,7 +531,7 @@ exports.deletePhoto = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const key = _keyFromUrl(photoUrl);
     if (key) {
         try {
-            await storage_1.s3.send(new client_s3_1.DeleteObjectCommand({ Bucket: storage_1.storageBucket, Key: key }));
+            await storage_1.r2.send(new client_s3_1.DeleteObjectCommand({ Bucket: storage_1.storageBucket, Key: key }));
         }
         catch { }
     }

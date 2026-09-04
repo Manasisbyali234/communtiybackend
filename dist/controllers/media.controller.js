@@ -103,20 +103,20 @@ exports.mediaController = {
         }
         res.redirect(file.url);
     }),
-    // Proxy S3 object by key — avoids needing public bucket access
+    // Proxy R2 object by key; avoids needing public bucket access.
     proxyFile: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         const raw = req.params['key'];
         // Support both encoded (feed%2Ffile.jpg) and decoded (feed/file.jpg) keys
         const key = raw.includes('%') ? decodeURIComponent(raw) : raw;
         try {
             const command = new client_s3_1.GetObjectCommand({ Bucket: storage_1.storageBucket, Key: key });
-            const s3Res = await storage_1.s3.send(command);
-            if (s3Res.ContentType)
-                res.setHeader('Content-Type', s3Res.ContentType);
-            if (s3Res.ContentLength)
-                res.setHeader('Content-Length', s3Res.ContentLength);
+            const r2Res = await storage_1.r2.send(command);
+            if (r2Res.ContentType)
+                res.setHeader('Content-Type', r2Res.ContentType);
+            if (r2Res.ContentLength)
+                res.setHeader('Content-Length', r2Res.ContentLength);
             res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-            const stream = s3Res.Body;
+            const stream = r2Res.Body;
             stream.on('error', (err) => {
                 console.error('[proxyFile] stream error for key:', key, err.message);
                 if (!res.headersSent)
@@ -125,7 +125,7 @@ exports.mediaController = {
             stream.pipe(res);
         }
         catch (err) {
-            console.error('[proxyFile] S3 error for key:', key, err?.name, err?.message);
+            console.error('[proxyFile] R2 error for key:', key, err?.name, err?.message);
             throw ApiError_1.ApiError.notFound('File not found');
         }
     }),

@@ -27,7 +27,15 @@ const envSchema = z.object({
   APPLE_KEY_ID: z.string().optional(),
   APPLE_PRIVATE_KEY: z.string().optional(),
 
-  // Storage (optional — local disk storage is used when not set)
+  // Cloudflare R2 storage
+  R2_ENDPOINT: z.string().url().optional(),
+  R2_REGION: z.string().default('auto'),
+  R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_BUCKET_NAME: z.string().optional(),
+  R2_PUBLIC_URL: z.string().url().optional(),
+
+  // Legacy names kept as fallbacks for older deployments.
   STORAGE_REGION: z.string().optional(),
   STORAGE_ACCESS_KEY: z.string().optional(),
   STORAGE_SECRET_KEY: z.string().optional(),

@@ -8,8 +8,8 @@ export interface StoryUploadResult {
     key: string;
     url: string;
 }
-export declare const storyS3Service: {
+export declare const storyR2Service: {
     validate(file: StoryFileInput): void;
     upload(file: StoryFileInput): Promise<StoryUploadResult>;
 };
-//# sourceMappingURL=story.s3.service.d.ts.map
+//# sourceMappingURL=story.r2.service.d.ts.map

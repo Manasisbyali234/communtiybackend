@@ -1,15 +1,54 @@
-import express, { Application } from 'express';
+import express, { Application, NextFunction, Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import path from 'path';
 import { config } from './config/index';
+import { GetObjectCommand } from '@aws-sdk/client-s3';
+import { Readable } from 'stream';
+import { r2, storageBucket } from './config/storage';
 import { globalRateLimiter } from './middleware/rateLimiter';
 import { errorHandler } from './middleware/errorHandler';
 import { notFound } from './middleware/notFound';
 import { requestLogger } from './middleware/requestLogger';
 import { setupSwagger } from './docs/swagger';
 import routes from './routes';
+import { ApiError } from './utils/ApiError';
+
+function inferContentType(key: string): string | undefined {
+  const ext = path.extname(key).toLowerCase();
+  const mime: Record<string, string> = {
+    '.apk': 'application/vnd.android.package-archive',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
+    '.mp4': 'video/mp4',
+    '.mov': 'video/quicktime',
+    '.webm': 'video/webm',
+    '.pdf': 'application/pdf',
+  };
+  return mime[ext];
+}
+
+async function proxyR2Object(key: string, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const object = await r2.send(new GetObjectCommand({ Bucket: storageBucket, Key: key }));
+    const contentType = object.ContentType ?? inferContentType(key);
+    if (contentType) res.setHeader('Content-Type', contentType);
+    if (object.ContentLength) res.setHeader('Content-Length', object.ContentLength);
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+
+    const stream = object.Body as Readable;
+    stream.on('error', next);
+    stream.pipe(res);
+  } catch (err: any) {
+    console.error('[uploadsProxy] R2 error for key:', key, err?.name, err?.message);
+    next(ApiError.notFound('File not found'));
+  }
+}
 
 export function buildApp(): Application {
   const app = express();
@@ -73,7 +112,7 @@ export function buildApp(): Application {
   // APK download landing page
   app.get('/download', (req, res) => {
     const ref = req.query.ref ? `?ref=${req.query.ref}` : '';
-    const APK_URL = 'https://community-api.metromindz.com/uploads/app-release.apk';
+    const APK_URL = `${config.APP_URL}/uploads/app-release.apk`;
     const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.mmdevteam.communityapp';
     res.setHeader('Content-Type', 'text/html');
     res.send(`<!DOCTYPE html>
@@ -115,18 +154,13 @@ export function buildApp(): Application {
 </html>`);
   });
 
-  // 6. Static uploads
-  app.use('/uploads', express.static(path.join(__dirname, '../uploads'), {
-    setHeaders(res, filePath) {
-      const ext = path.extname(filePath).toLowerCase();
-      const mime: Record<string, string> = {
-        '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
-        '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
-        '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm',
-      };
-      if (mime[ext]) res.setHeader('Content-Type', mime[ext]);
-    },
-  }));
+  // 6. R2-backed uploads prefix. No files are served from the Docker/container filesystem.
+  app.get('/uploads/*', (req: Request, res: Response, next: NextFunction) => {
+    const requestedKey = req.params[0];
+    if (!requestedKey) return next(ApiError.notFound('File not found'));
+    const key = `uploads/${requestedKey}`;
+    void proxyR2Object(key, res, next);
+  });
 
   // 7. Routes
   app.use('/api/v1', routes);

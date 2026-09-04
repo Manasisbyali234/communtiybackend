@@ -50,7 +50,7 @@ router.use('/explore', explore_routes_1.default);
 router.use('/search', search_routes_1.default);
 // Media
 router.use('/media', media_routes_1.default);
-// Story Upload (isolated — stories/ S3 folder only)
+// Story Upload (isolated R2 stories/ prefix)
 router.use('/story-upload', story_upload_routes_1.default);
 // Market Rates
 router.use('/market-rates', marketRates_routes_1.default);

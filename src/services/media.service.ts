@@ -1,12 +1,12 @@
 import path from 'path';
 import crypto from 'crypto';
-import { PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { prisma } from '../config/database';
 import { ApiError } from '../utils/ApiError';
-import { s3, storageBucket, storagePublicUrl } from '../config/storage';
+import { r2, storageBucket } from '../config/storage';
 import { config } from '../config';
 
-// Serve images through the backend proxy so S3 bucket doesn't need public access
+// Serve files through the backend proxy so the R2 bucket doesn't need public access.
 const proxyUrl = (key: string) => `${config.APP_URL}/api/v1/media/proxy/${encodeURIComponent(key)}`;
 
 const ALLOWED_MIME_TYPES = new Set([
@@ -34,7 +34,7 @@ export const mediaService = {
     const filename = `${crypto.randomUUID()}${extension}`;
     const key = `uploads/${filename}`;
 
-    return this._uploadToS3(file, key, uploadedBy);
+    return this._uploadToStorage(file, key, uploadedBy);
   },
 
   async uploadEventImage(file: UploadedFile, uploadedBy: string): Promise<{ id: string; filename: string; url: string }> {
@@ -45,7 +45,7 @@ export const mediaService = {
     const filename = `${crypto.randomUUID()}${extension}`;
     const key = `events/${filename}`;
 
-    await s3.send(new PutObjectCommand({
+    await r2.send(new PutObjectCommand({
       Bucket: storageBucket,
       Key: key,
       Body: file.buffer,
@@ -55,7 +55,7 @@ export const mediaService = {
     // Store a relative proxy URL so any client IP resolves it correctly via toAbs()
     const url = `/api/v1/media/proxy/${encodeURIComponent(key)}`;
 
-    console.log('[uploadEventImage] S3 key:', key, '| db url:', url);
+    console.log('[uploadEventImage] R2 key:', key, '| db url:', url);
 
     const mediaFile = await prisma.mediaFile.create({
       data: { filename: key, originalName: file.originalname, mimeType: file.mimetype, fileSize: file.size, url, uploadedBy },
@@ -72,7 +72,7 @@ export const mediaService = {
 
     const extension = path.extname(file.originalname) || '.jpg';
     const key = `communities/${uploadedBy}/${crypto.randomUUID()}${extension}`;
-    return this._uploadToS3(file, key, uploadedBy);
+    return this._uploadToStorage(file, key, uploadedBy);
   },
 
   async uploadProfilePhoto(file: UploadedFile, uploadedBy: string): Promise<{ id: string; filename: string; url: string }> {
@@ -82,7 +82,7 @@ export const mediaService = {
     const extension = path.extname(file.originalname) || '.jpg';
     const key = `profile/profile-photo-${uploadedBy}-${Date.now()}${extension}`;
 
-    return this._uploadProfileToS3(file, key, uploadedBy);
+    return this._uploadProfileToStorage(file, key, uploadedBy);
   },
 
   async uploadCoverPhoto(file: UploadedFile, uploadedBy: string): Promise<{ id: string; filename: string; url: string }> {
@@ -92,7 +92,7 @@ export const mediaService = {
     const extension = path.extname(file.originalname) || '.jpg';
     const key = `profile/cover-photo-${uploadedBy}-${Date.now()}${extension}`;
 
-    return this._uploadProfileToS3(file, key, uploadedBy);
+    return this._uploadProfileToStorage(file, key, uploadedBy);
   },
 
   async uploadChatFile(file: UploadedFile, uploadedBy: string): Promise<{ id: string; filename: string; url: string; key: string; originalName: string; mimeType: string; fileSize: number }> {
@@ -117,7 +117,7 @@ export const mediaService = {
     const filename = `${crypto.randomUUID()}${extension}`;
     const key = `chat/${filename}`;
 
-    await s3.send(new PutObjectCommand({
+    await r2.send(new PutObjectCommand({
       Bucket: storageBucket,
       Key: key,
       Body: file.buffer,
@@ -149,7 +149,7 @@ export const mediaService = {
     const extension = path.extname(file.originalname) || '.jpg';
     const key = `feed/post-${uploadedBy}-${Date.now()}${extension}`;
 
-    return this._uploadToS3(file, key, uploadedBy);
+    return this._uploadToStorage(file, key, uploadedBy);
   },
 
   async uploadPostVideo(file: UploadedFile, uploadedBy: string): Promise<{ id: string; filename: string; url: string; mimeType: string; fileSize: number }> {
@@ -164,7 +164,7 @@ export const mediaService = {
     const filename = `video-${crypto.randomUUID()}${extension}`;
     const key = `feed/${filename}`;
 
-    await s3.send(new PutObjectCommand({
+    await r2.send(new PutObjectCommand({
       Bucket: storageBucket,
       Key: key,
       Body: file.buffer,
@@ -182,8 +182,8 @@ export const mediaService = {
 
   // Profile images use a relative proxy path so any client IP can resolve them correctly.
   // The frontend's toAbs() in authStore prepends the correct base URL at runtime.
-  async _uploadProfileToS3(file: UploadedFile, key: string, uploadedBy: string): Promise<{ id: string; filename: string; url: string }> {
-    await s3.send(new PutObjectCommand({
+  async _uploadProfileToStorage(file: UploadedFile, key: string, uploadedBy: string): Promise<{ id: string; filename: string; url: string }> {
+    await r2.send(new PutObjectCommand({
       Bucket: storageBucket,
       Key: key,
       Body: file.buffer,
@@ -200,9 +200,9 @@ export const mediaService = {
     return { id: mediaFile.id, filename: key, url };
   },
 
-  async _uploadToS3(file: UploadedFile, key: string, uploadedBy: string): Promise<{ id: string; filename: string; url: string }> {
+  async _uploadToStorage(file: UploadedFile, key: string, uploadedBy: string): Promise<{ id: string; filename: string; url: string }> {
 
-    await s3.send(new PutObjectCommand({
+    await r2.send(new PutObjectCommand({
       Bucket: storageBucket,
       Key: key,
       Body: file.buffer,
@@ -238,7 +238,7 @@ export const mediaService = {
     const file = await prisma.mediaFile.findFirst({ where, select: { id: true, filename: true } });
     if (!file) throw ApiError.notFound('File not found or you do not have permission to delete it.');
 
-    await s3.send(new DeleteObjectCommand({ Bucket: storageBucket, Key: file.filename }));
+    await r2.send(new DeleteObjectCommand({ Bucket: storageBucket, Key: file.filename }));
     await prisma.mediaFile.delete({ where: { id } });
   },
 

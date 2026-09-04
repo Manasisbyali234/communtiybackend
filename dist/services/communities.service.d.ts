@@ -101,7 +101,7 @@ export declare const communitiesService: {
     }>;
     delete(communityId: string, userId: string): Promise<void>;
     join(communityId: string, userId: string): Promise<{
-        status: "ACTIVE" | "PENDING";
+        status: "PENDING" | "ACTIVE";
     }>;
     leave(communityId: string, userId: string): Promise<void>;
     getPendingMembers(communityId: string, requesterId: string): Promise<{
