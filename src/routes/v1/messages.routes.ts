@@ -3,9 +3,11 @@ import { z } from 'zod';
 import { messagesController } from '../../controllers/messages.controller';
 import { auth } from '../../middleware/auth';
 import { validate } from '../../middleware/validate';
+import { messagesRateLimiter } from '../../middleware/rateLimiter';
 
 const router = Router();
 router.use(auth);
+router.use(messagesRateLimiter);
 
 const StartConversationSchema = z.object({ participantId: z.string().min(1) });
 
