@@ -1,9 +1,5 @@
-export interface StoryFileInput {
-    buffer: Buffer;
-    originalname: string;
-    mimetype: string;
-    size: number;
-}
+import { UploadedFile } from '../services/media.service';
+export type StoryFileInput = UploadedFile;
 export interface StoryUploadResult {
     key: string;
     url: string;

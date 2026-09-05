@@ -1,6 +1,7 @@
 import multer, { FileFilterCallback } from 'multer';
 import { Request } from 'express';
 import { ApiError } from '../utils/ApiError';
+import { MAX_MEDIA_UPLOAD_SIZE } from '../services/media.service';
 
 const STORY_ALLOWED_TYPES = new Set([
   'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif',
@@ -18,5 +19,5 @@ function storyFileFilter(_req: Request, file: Express.Multer.File, cb: FileFilte
 export const storyUpload = multer({
   storage: multer.memoryStorage(),
   fileFilter: storyFileFilter,
-  limits: { fileSize: 50 * 1024 * 1024 },
+  limits: { fileSize: MAX_MEDIA_UPLOAD_SIZE },
 });

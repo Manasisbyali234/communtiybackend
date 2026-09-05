@@ -4,6 +4,7 @@ export declare const getBusiness: (req: Request, res: Response, next: import("ex
 export declare const myBusinesses: (req: Request, res: Response, next: import("express").NextFunction) => void;
 export declare const createBusiness: (req: Request, res: Response, next: import("express").NextFunction) => void;
 export declare const updateBusiness: (req: Request, res: Response, next: import("express").NextFunction) => void;
+export declare const archiveBusiness: (req: Request, res: Response, next: import("express").NextFunction) => void;
 export declare const deleteBusiness: (req: Request, res: Response, next: import("express").NextFunction) => void;
 export declare const contactBusiness: (req: Request, res: Response, next: import("express").NextFunction) => void;
 export declare const addBusinessReview: (req: Request, res: Response, next: import("express").NextFunction) => void;
@@ -13,6 +14,8 @@ export declare const listHelp: (req: Request, res: Response, next: import("expre
 export declare const myHelp: (req: Request, res: Response, next: import("express").NextFunction) => void;
 export declare const getHelp: (req: Request, res: Response, next: import("express").NextFunction) => void;
 export declare const createHelp: (req: Request, res: Response, next: import("express").NextFunction) => void;
+export declare const updateHelp: (req: Request, res: Response, next: import("express").NextFunction) => void;
+export declare const archiveHelp: (req: Request, res: Response, next: import("express").NextFunction) => void;
 export declare const offerHelp: (req: Request, res: Response, next: import("express").NextFunction) => void;
 export declare const listHelpAdmin: (req: Request, res: Response, next: import("express").NextFunction) => void;
 export declare const moderateHelp: (req: Request, res: Response, next: import("express").NextFunction) => void;

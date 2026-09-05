@@ -19,38 +19,46 @@ const cleanString = (value: unknown) => {
   return trimmed ? trimmed : null;
 };
 
-const employerDataFromBody = (body: Record<string, unknown>, partial = false) => {
-  const name = cleanString(body.name);
+const employerDataFromBody = (body: unknown, partial = false): Prisma.EmployerCreateInput | Prisma.EmployerUpdateInput => {
+  const source = body && typeof body === 'object' ? body as Record<string, unknown> : {};
+  const name = cleanString(source.name);
   if (!partial && !name) throw new ApiError(400, 'Company name is required');
-  if (partial && 'name' in body && !name) throw new ApiError(400, 'Company name is required');
+  if (partial && 'name' in source && !name) throw new ApiError(400, 'Company name is required');
 
   const data: Record<string, string | null> = {};
-  if (!partial || 'name' in body) data.name = name;
+  if (!partial || 'name' in source) data.name = name;
   for (const key of ['logoUrl', 'website', 'industry', 'description', 'email', 'phone', 'address', 'city', 'state']) {
-    if (!partial || key in body) data[key] = cleanString(body[key]);
+    if (!partial || key in source) data[key] = cleanString(source[key]);
   }
   return data;
 };
 
 // ── Admin: Employer CRUD ─────────────────────────────────────────────────────
 export const createEmployer = asyncHandler(async (req: Request, res: Response) => {
-  try {
-    const employer = await prisma.employer.create({
-      data: employerDataFromBody(req.body) as unknown as Prisma.EmployerCreateInput,
-    });
-    res.status(201).json(new ApiResponse(201, employer, 'Employer created'));
-  } catch (err: any) {
-    console.error('[createEmployer] DB error:', err?.message, err?.code);
-    throw new ApiError(500, err?.message || 'Failed to create employer');
-  }
+  const data = employerDataFromBody(req.body);
+  const employer = await prisma.employer.create({
+    data: data as Prisma.EmployerCreateInput,
+  });
+  res.status(201).json(new ApiResponse(201, employer, 'Employer created'));
 });
 
 export const listEmployers = asyncHandler(async (_req: Request, res: Response) => {
   const employers = await prisma.employer.findMany({
     orderBy: { createdAt: 'desc' },
-    include: { _count: { select: { jobs: true } } },
   });
-  res.json(new ApiResponse(200, employers.map(({ _count, ...e }) => ({ ...e, jobCount: _count.jobs }))));
+  const jobCounts = employers.length
+    ? await prisma.job.groupBy({
+        by: ['employerId'],
+        where: { employerId: { in: employers.map((employer) => employer.id) } },
+        _count: { _all: true },
+      })
+    : [];
+  const countsByEmployer = new Map(jobCounts.map((count) => [count.employerId, count._count._all]));
+
+  res.json(new ApiResponse(200, employers.map((employer) => ({
+    ...employer,
+    jobCount: countsByEmployer.get(employer.id) ?? 0,
+  }))));
 });
 
 // ── Public: List Employers with active job count ──────────────────────────────
@@ -58,9 +66,23 @@ export const listEmployersPublic = asyncHandler(async (_req: Request, res: Respo
   const employers = await prisma.employer.findMany({
     where: { isActive: true },
     orderBy: { name: 'asc' },
-    include: { _count: { select: { jobs: { where: { status: 'ACTIVE' } } } } },
   });
-  res.json(new ApiResponse(200, employers.map(({ _count, ...e }) => ({ ...e, jobCount: _count.jobs }))));
+  const activeJobCounts = employers.length
+    ? await prisma.job.groupBy({
+        by: ['employerId'],
+        where: {
+          employerId: { in: employers.map((employer) => employer.id) },
+          status: 'ACTIVE',
+        },
+        _count: { _all: true },
+      })
+    : [];
+  const countsByEmployer = new Map(activeJobCounts.map((count) => [count.employerId, count._count._all]));
+
+  res.json(new ApiResponse(200, employers.map((employer) => ({
+    ...employer,
+    jobCount: countsByEmployer.get(employer.id) ?? 0,
+  }))));
 });
 
 export const getEmployer = asyncHandler(async (req: Request, res: Response) => {

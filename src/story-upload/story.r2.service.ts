@@ -1,6 +1,7 @@
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { r2, storageBucket } from '../config/storage';
 import { config } from '../config';
+import { MAX_MEDIA_UPLOAD_SIZE, prepareMediaForUpload, UploadedFile } from '../services/media.service';
 
 const STORY_FOLDER = 'stories';
 
@@ -9,14 +10,7 @@ const ALLOWED_MIME_TYPES = new Set([
   'video/mp4', 'video/quicktime', 'video/avi', 'video/webm', 'video/x-msvideo',
 ]);
 
-const MAX_SIZE_BYTES = 50 * 1024 * 1024;
-
-export interface StoryFileInput {
-  buffer: Buffer;
-  originalname: string;
-  mimetype: string;
-  size: number;
-}
+export type StoryFileInput = UploadedFile;
 
 export interface StoryUploadResult {
   key: string;
@@ -24,7 +18,6 @@ export interface StoryUploadResult {
 }
 
 function buildKey(originalname: string): string {
-  const ext = originalname.includes('.') ? originalname.split('.').pop()!.toLowerCase() : 'bin';
   const safe = originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
   return `${STORY_FOLDER}/${Date.now()}_${safe}`;
 }
@@ -40,21 +33,22 @@ export const storyR2Service = {
         `Unsupported file type: ${file.mimetype}. Allowed: jpg, jpeg, png, webp, gif, mp4, mov, avi, webm`
       );
     }
-    if (file.size > MAX_SIZE_BYTES) {
-      throw new Error('File too large. Maximum size is 50MB.');
+    if (file.size > MAX_MEDIA_UPLOAD_SIZE) {
+      throw new Error('File too large. Maximum size is 200MB.');
     }
   },
 
   async upload(file: StoryFileInput): Promise<StoryUploadResult> {
     storyR2Service.validate(file);
-    const key = buildKey(file.originalname);
+    const prepared = await prepareMediaForUpload(file);
+    const key = buildKey(prepared.originalname);
 
     await r2.send(
       new PutObjectCommand({
         Bucket: storageBucket,
         Key: key,
-        Body: file.buffer,
-        ContentType: file.mimetype,
+        Body: prepared.buffer,
+        ContentType: prepared.mimetype,
       })
     );
 

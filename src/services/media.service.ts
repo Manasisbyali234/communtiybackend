@@ -1,5 +1,9 @@
 import path from 'path';
 import crypto from 'crypto';
+import { spawn } from 'child_process';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'fs/promises';
+import { tmpdir } from 'os';
+import ffmpegPath from 'ffmpeg-static';
 import sharp from 'sharp';
 import { PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { prisma } from '../config/database';
@@ -12,7 +16,7 @@ const proxyUrl = (key: string) => `${config.APP_URL}/api/v1/media/proxy/${encode
 
 const ALLOWED_MIME_TYPES = new Set([
   'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
-  'video/mp4', 'video/mpeg', 'video/quicktime', 'video/webm',
+  'video/mp4', 'video/mpeg', 'video/quicktime', 'video/webm', 'video/x-msvideo', 'video/x-matroska', 'video/avi',
   'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp3',
   'application/pdf', 'text/plain',
 ]);
@@ -28,6 +32,15 @@ export interface UploadedFile {
 }
 
 const JPEG_MIME_TYPES = new Set(['image/jpeg', 'image/jpg']);
+const VIDEO_MIME_TYPES = new Set([
+  'video/mp4',
+  'video/mpeg',
+  'video/quicktime',
+  'video/webm',
+  'video/x-msvideo',
+  'video/x-matroska',
+  'video/avi',
+]);
 
 export async function prepareImageForUpload(file: UploadedFile): Promise<UploadedFile> {
   if (!JPEG_MIME_TYPES.has(file.mimetype.toLowerCase())) return file;
@@ -51,6 +64,80 @@ export async function prepareImageForUpload(file: UploadedFile): Promise<Uploade
   }
 }
 
+function runFfmpeg(args: string[]): Promise<void> {
+  if (!ffmpegPath) {
+    throw ApiError.internal('Video compression is not available on this server.');
+  }
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(ffmpegPath, args, { windowsHide: true });
+    let stderr = '';
+
+    child.stderr.on('data', (chunk) => {
+      if (stderr.length < 4000) stderr += chunk.toString();
+    });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(stderr || `ffmpeg exited with code ${code}`));
+    });
+  });
+}
+
+export async function prepareVideoForUpload(file: UploadedFile): Promise<UploadedFile> {
+  if (!VIDEO_MIME_TYPES.has(file.mimetype.toLowerCase())) return file;
+  assertMaxUploadSize(file);
+
+  const tempDir = await mkdtemp(path.join(tmpdir(), 'community-media-'));
+  const inputPath = path.join(tempDir, `input${path.extname(file.originalname) || '.video'}`);
+  const outputPath = path.join(tempDir, 'output.mp4');
+
+  try {
+    await writeFile(inputPath, file.buffer);
+    await runFfmpeg([
+      '-y',
+      '-i', inputPath,
+      '-vf', 'scale=min(1280\\,iw):-2',
+      '-c:v', 'libx264',
+      '-preset', 'veryfast',
+      '-crf', '28',
+      '-c:a', 'aac',
+      '-b:a', '128k',
+      '-movflags', '+faststart',
+      outputPath,
+    ]);
+
+    const outputStats = await stat(outputPath);
+    if (outputStats.size > MAX_MEDIA_UPLOAD_SIZE) {
+      throw ApiError.badRequest('Compressed video is still too large. Maximum size is 200MB.');
+    }
+
+    if (outputStats.size >= file.size && file.mimetype.toLowerCase() === 'video/mp4') {
+      return file;
+    }
+
+    const buffer = await readFile(outputPath);
+    return {
+      ...file,
+      buffer,
+      size: buffer.length,
+      mimetype: 'video/mp4',
+      originalname: file.originalname.replace(/\.[^.]+$/i, '.mp4') || `${file.originalname}.mp4`,
+    };
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw ApiError.badRequest('Could not process video upload.');
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+}
+
+export async function prepareMediaForUpload(file: UploadedFile): Promise<UploadedFile> {
+  if (file.mimetype.toLowerCase().startsWith('image/')) return prepareImageForUpload(file);
+  if (VIDEO_MIME_TYPES.has(file.mimetype.toLowerCase())) return prepareVideoForUpload(file);
+  return file;
+}
+
 const assertMaxUploadSize = (file: UploadedFile) => {
   if (file.size > MAX_MEDIA_UPLOAD_SIZE) {
     throw ApiError.badRequest('File too large. Maximum size is 200MB.');
@@ -64,7 +151,7 @@ export const mediaService = {
     assertMaxUploadSize(file);
     if (!ALLOWED_MIME_TYPES.has(file.mimetype.toLowerCase())) throw ApiError.badRequest('File type not allowed.');
 
-    const prepared = await prepareImageForUpload(file);
+    const prepared = await prepareMediaForUpload(file);
     const extension = fileExtension(prepared);
     const filename = `${crypto.randomUUID()}${extension}`;
     const key = `uploads/${filename}`;
@@ -76,7 +163,7 @@ export const mediaService = {
     assertMaxUploadSize(file);
     if (!ALLOWED_MIME_TYPES.has(file.mimetype.toLowerCase())) throw ApiError.badRequest('File type not allowed.');
 
-    const prepared = await prepareImageForUpload(file);
+    const prepared = await prepareMediaForUpload(file);
     const extension = fileExtension(prepared);
     const filename = `${crypto.randomUUID()}${extension}`;
     const key = `events/${filename}`;
@@ -194,31 +281,31 @@ export const mediaService = {
   },
 
   async uploadPostVideo(file: UploadedFile, uploadedBy: string): Promise<{ id: string; filename: string; url: string; mimeType: string; fileSize: number }> {
-    const VIDEO_MIME_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm']);
     const EXECUTABLE_TYPES = new Set(['application/x-msdownload', 'application/x-executable', 'application/x-sh']);
 
     if (EXECUTABLE_TYPES.has(file.mimetype.toLowerCase())) throw ApiError.badRequest('Executable files are not allowed.');
     if (!VIDEO_MIME_TYPES.has(file.mimetype.toLowerCase())) throw ApiError.badRequest('Unsupported video format. Allowed: MP4, MOV, AVI, WebM.');
-    if (file.size > MAX_MEDIA_UPLOAD_SIZE) throw ApiError.badRequest('Maximum video size allowed is 200 MB.');
+    assertMaxUploadSize(file);
 
-    const extension = path.extname(file.originalname) || '.mp4';
+    const prepared = await prepareVideoForUpload(file);
+    const extension = fileExtension(prepared, '.mp4');
     const filename = `video-${crypto.randomUUID()}${extension}`;
     const key = `feed/${filename}`;
 
     await r2.send(new PutObjectCommand({
       Bucket: storageBucket,
       Key: key,
-      Body: file.buffer,
-      ContentType: file.mimetype,
+      Body: prepared.buffer,
+      ContentType: prepared.mimetype,
     }));
 
     const url = `/api/v1/media/proxy/${encodeURIComponent(key)}`;
 
     const mediaFile = await prisma.mediaFile.create({
-      data: { filename: key, originalName: file.originalname, mimeType: file.mimetype, fileSize: file.size, url, uploadedBy },
+      data: { filename: key, originalName: prepared.originalname, mimeType: prepared.mimetype, fileSize: prepared.size, url, uploadedBy },
     });
 
-    return { id: mediaFile.id, filename: key, url, mimeType: file.mimetype, fileSize: file.size };
+    return { id: mediaFile.id, filename: key, url, mimeType: prepared.mimetype, fileSize: prepared.size };
   },
 
   // Profile images use a relative proxy path so any client IP can resolve them correctly.

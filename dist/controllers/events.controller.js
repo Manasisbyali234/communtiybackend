@@ -36,6 +36,10 @@ exports.eventsController = {
         await events_service_1.eventsService.delete(req.params['id'], req.user.id);
         res.json(new ApiResponse_1.ApiResponse(200, null, 'Event deleted'));
     }),
+    archive: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const event = await events_service_1.eventsService.archive(req.params['id'], req.user.id);
+        res.json(new ApiResponse_1.ApiResponse(200, event, 'Event archived'));
+    }),
     rsvp: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         const { status } = req.body;
         const rsvp = await events_service_1.eventsService.rsvp(req.params['id'], req.user.id, status);

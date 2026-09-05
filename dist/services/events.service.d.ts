@@ -99,6 +99,25 @@ export declare const eventsService: {
         interestedCount: number;
     }>;
     delete(eventId: string, creatorId: string): Promise<void>;
+    archive(eventId: string, creatorId: string): Promise<{
+        status: import(".prisma/client").$Enums.EventStatus;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        description: string | null;
+        communityId: string | null;
+        likesCount: number;
+        commentsCount: number;
+        sharesCount: number;
+        creatorId: string;
+        title: string;
+        location: string | null;
+        startsAt: Date;
+        endsAt: Date | null;
+        coverUrl: string | null;
+        rsvpCount: number;
+        interestedCount: number;
+    }>;
     rsvp(eventId: string, userId: string, status: RsvpStatus): Promise<{
         status: import(".prisma/client").$Enums.RsvpStatus;
         id: string;

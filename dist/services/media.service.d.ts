@@ -1,9 +1,14 @@
-interface UploadedFile {
+export declare const MAX_MEDIA_UPLOAD_SIZE: number;
+export declare const MAX_LOGO_UPLOAD_SIZE: number;
+export interface UploadedFile {
     buffer: Buffer;
     originalname: string;
     mimetype: string;
     size: number;
 }
+export declare function prepareImageForUpload(file: UploadedFile): Promise<UploadedFile>;
+export declare function prepareVideoForUpload(file: UploadedFile): Promise<UploadedFile>;
+export declare function prepareMediaForUpload(file: UploadedFile): Promise<UploadedFile>;
 export declare const mediaService: {
     uploadFile(file: UploadedFile, uploadedBy: string): Promise<{
         id: string;
@@ -101,5 +106,4 @@ export declare const mediaService: {
         totalSize: number;
     }>;
 };
-export {};
 //# sourceMappingURL=media.service.d.ts.map

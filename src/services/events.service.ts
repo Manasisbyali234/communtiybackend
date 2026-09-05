@@ -123,7 +123,7 @@ export const eventsService = {
       },
     });
     if (!event) throw ApiError.notFound('Event not found');
-    if (event.status !== EventStatus.APPROVED) throw ApiError.notFound('Event not found');
+    if (event.status !== EventStatus.APPROVED && event.creatorId !== userId) throw ApiError.notFound('Event not found');
 
     return {
       ...event,
@@ -146,6 +146,13 @@ export const eventsService = {
     if (!event) throw ApiError.notFound('Event not found');
     if (event.creatorId !== creatorId) throw ApiError.forbidden('Only the event creator can delete it');
     await prisma.event.delete({ where: { id: eventId } });
+  },
+
+  async archive(eventId: string, creatorId: string) {
+    const event = await prisma.event.findUnique({ where: { id: eventId } });
+    if (!event) throw ApiError.notFound('Event not found');
+    if (event.creatorId !== creatorId) throw ApiError.forbidden('Only the event creator can archive it');
+    return prisma.event.update({ where: { id: eventId }, data: { status: EventStatus.ARCHIVED } });
   },
 
   async rsvp(eventId: string, userId: string, status: RsvpStatus) {

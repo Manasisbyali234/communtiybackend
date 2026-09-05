@@ -6,6 +6,26 @@ const auth_controller_1 = require("../../controllers/auth.controller");
 const validate_1 = require("../../middleware/validate");
 const auth_1 = require("../../middleware/auth");
 const router = (0, express_1.Router)();
+const parseDob = (value) => {
+    if (!value)
+        return null;
+    const normalized = value.includes('/')
+        ? value.split('/').reverse().join('-')
+        : value;
+    const date = new Date(normalized);
+    return Number.isNaN(date.getTime()) ? null : date;
+};
+const isAtLeastAge = (value, minimumAge = 18) => {
+    const dob = parseDob(value);
+    if (!dob)
+        return false;
+    const today = new Date();
+    let age = today.getFullYear() - dob.getFullYear();
+    const birthdayThisYear = new Date(today.getFullYear(), dob.getMonth(), dob.getDate());
+    if (today < birthdayThisYear)
+        age -= 1;
+    return age >= minimumAge;
+};
 const RegisterSchema = zod_1.z.object({
     email: zod_1.z.string().email(),
     username: zod_1.z.string().min(3).max(30).regex(/^[a-z0-9_]+$/, 'Lowercase letters, numbers, and underscores only'),
@@ -13,7 +33,7 @@ const RegisterSchema = zod_1.z.object({
     password: zod_1.z.string().min(8).max(72),
     phone: zod_1.z.string().min(10).max(20).optional(),
     familyName: zod_1.z.string().min(1).max(60).optional(),
-    dob: zod_1.z.string().max(20).optional(),
+    dob: zod_1.z.string().max(20).optional().refine((value) => !value || isAtLeastAge(value), 'You must be at least 18 years old to register'),
     gender: zod_1.z.enum(['Male', 'Female', 'Other']).optional(),
     country: zod_1.z.string().max(80).optional(),
     state: zod_1.z.string().max(80).optional(),

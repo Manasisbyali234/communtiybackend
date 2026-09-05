@@ -43,6 +43,7 @@ enum EventStatus {
   PENDING_APPROVAL
   APPROVED
   REJECTED
+  ARCHIVED
 }
 
 enum MediaType {

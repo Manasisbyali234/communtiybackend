@@ -13,6 +13,26 @@ const clean = (value) => {
     const trimmed = value?.trim();
     return trimmed ? trimmed : undefined;
 };
+const parseDob = (value) => {
+    if (!value)
+        return null;
+    const normalized = value.includes('/')
+        ? value.split('/').reverse().join('-')
+        : value;
+    const date = new Date(normalized);
+    return Number.isNaN(date.getTime()) ? null : date;
+};
+const isAtLeastAge = (value, minimumAge = 18) => {
+    const dob = parseDob(value);
+    if (!dob)
+        return false;
+    const today = new Date();
+    let age = today.getFullYear() - dob.getFullYear();
+    const birthdayThisYear = new Date(today.getFullYear(), dob.getMonth(), dob.getDate());
+    if (today < birthdayThisYear)
+        age -= 1;
+    return age >= minimumAge;
+};
 const buildRegistrationProfileData = (data) => {
     const nativePlace = clean(data.nativePlace);
     const city = clean(data.city);
@@ -79,6 +99,9 @@ const userAuthSelect = {
 };
 exports.authService = {
     async register(data) {
+        if (data.dob && !isAtLeastAge(data.dob)) {
+            throw ApiError_1.ApiError.badRequest('You must be at least 18 years old to register');
+        }
         const profileData = buildRegistrationProfileData(data);
         const existing = await database_1.prisma.user.findFirst({
             where: { OR: [{ email: profileData.email }, { username: profileData.username }] },

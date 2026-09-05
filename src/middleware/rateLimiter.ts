@@ -18,6 +18,7 @@ export const messagesRateLimiter = rateLimit({
   max: 600,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id ?? req.ip ?? 'anonymous',
   handler: (_req, _res, next) => {
     next(new ApiError(429, 'Too many requests, please try again later.'));
   },

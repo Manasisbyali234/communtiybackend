@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -13,31 +46,76 @@ const config_1 = require("../config");
 const ApiResponse_1 = require("../utils/ApiResponse");
 const ApiError_1 = require("../utils/ApiError");
 const asyncHandler_1 = require("../utils/asyncHandler");
+const media_service_1 = require("../services/media.service");
+const EMPLOYER_IMAGE_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
+const cleanString = (value) => {
+    if (typeof value !== 'string')
+        return null;
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
+};
+const employerDataFromBody = (body, partial = false) => {
+    const source = body && typeof body === 'object' ? body : {};
+    const name = cleanString(source.name);
+    if (!partial && !name)
+        throw new ApiError_1.ApiError(400, 'Company name is required');
+    if (partial && 'name' in source && !name)
+        throw new ApiError_1.ApiError(400, 'Company name is required');
+    const data = {};
+    if (!partial || 'name' in source)
+        data.name = name;
+    for (const key of ['logoUrl', 'website', 'industry', 'description', 'email', 'phone', 'address', 'city', 'state']) {
+        if (!partial || key in source)
+            data[key] = cleanString(source[key]);
+    }
+    return data;
+};
 // ── Admin: Employer CRUD ─────────────────────────────────────────────────────
 exports.createEmployer = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const { name, logoUrl, website, industry, description, email, phone, address, city, state } = req.body;
-    if (!name)
-        throw new ApiError_1.ApiError(400, 'Company name is required');
+    const data = employerDataFromBody(req.body);
     const employer = await database_1.prisma.employer.create({
-        data: { name, logoUrl, website, industry, description, email, phone, address, city, state },
+        data: data,
     });
     res.status(201).json(new ApiResponse_1.ApiResponse(201, employer, 'Employer created'));
 });
 exports.listEmployers = (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
     const employers = await database_1.prisma.employer.findMany({
         orderBy: { createdAt: 'desc' },
-        include: { _count: { select: { jobs: true } } },
     });
-    res.json(new ApiResponse_1.ApiResponse(200, employers.map(({ _count, ...e }) => ({ ...e, jobCount: _count.jobs }))));
+    const jobCounts = employers.length
+        ? await database_1.prisma.job.groupBy({
+            by: ['employerId'],
+            where: { employerId: { in: employers.map((employer) => employer.id) } },
+            _count: { _all: true },
+        })
+        : [];
+    const countsByEmployer = new Map(jobCounts.map((count) => [count.employerId, count._count._all]));
+    res.json(new ApiResponse_1.ApiResponse(200, employers.map((employer) => ({
+        ...employer,
+        jobCount: countsByEmployer.get(employer.id) ?? 0,
+    }))));
 });
 // ── Public: List Employers with active job count ──────────────────────────────
 exports.listEmployersPublic = (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
     const employers = await database_1.prisma.employer.findMany({
         where: { isActive: true },
         orderBy: { name: 'asc' },
-        include: { _count: { select: { jobs: { where: { status: 'ACTIVE' } } } } },
     });
-    res.json(new ApiResponse_1.ApiResponse(200, employers.map(({ _count, ...e }) => ({ ...e, jobCount: _count.jobs }))));
+    const activeJobCounts = employers.length
+        ? await database_1.prisma.job.groupBy({
+            by: ['employerId'],
+            where: {
+                employerId: { in: employers.map((employer) => employer.id) },
+                status: 'ACTIVE',
+            },
+            _count: { _all: true },
+        })
+        : [];
+    const countsByEmployer = new Map(activeJobCounts.map((count) => [count.employerId, count._count._all]));
+    res.json(new ApiResponse_1.ApiResponse(200, employers.map((employer) => ({
+        ...employer,
+        jobCount: countsByEmployer.get(employer.id) ?? 0,
+    }))));
 });
 exports.getEmployer = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const employer = await database_1.prisma.employer.findUnique({ where: { id: req.params.id } });
@@ -48,7 +126,7 @@ exports.getEmployer = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
 exports.updateEmployer = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const employer = await database_1.prisma.employer.update({
         where: { id: req.params.id },
-        data: req.body,
+        data: employerDataFromBody(req.body, true),
     });
     res.json(new ApiResponse_1.ApiResponse(200, employer, 'Employer updated'));
 });
@@ -59,35 +137,41 @@ exports.deleteEmployer = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
 exports.uploadEmployerLogo = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     if (!req.file)
         throw new ApiError_1.ApiError(400, 'No file provided');
-    const ALLOWED = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
-    if (!ALLOWED.has(req.file.mimetype.toLowerCase()))
+    if (!EMPLOYER_IMAGE_TYPES.has(req.file.mimetype.toLowerCase()))
         throw new ApiError_1.ApiError(400, 'Only JPEG, PNG or WebP allowed');
-    if (req.file.size > 5 * 1024 * 1024)
-        throw new ApiError_1.ApiError(400, 'Logo must be under 5MB');
-    const ext = path_1.default.extname(req.file.originalname) || '.jpg';
+    if (req.file.size > media_service_1.MAX_LOGO_UPLOAD_SIZE)
+        throw new ApiError_1.ApiError(400, 'Logo must be under 10MB');
+    const file = await (0, media_service_1.prepareImageForUpload)(req.file);
+    const ext = path_1.default.extname(file.originalname) || '.jpg';
     const key = `employers/${crypto_1.default.randomUUID()}${ext}`;
-    await storage_1.r2.send(new client_s3_1.PutObjectCommand({ Bucket: storage_1.storageBucket, Key: key, Body: req.file.buffer, ContentType: req.file.mimetype }));
-    const url = `${config_1.config.APP_URL}/api/v1/media/proxy/${encodeURIComponent(key)}`;
+    await storage_1.r2.send(new client_s3_1.PutObjectCommand({ Bucket: storage_1.storageBucket, Key: key, Body: file.buffer, ContentType: file.mimetype }));
+    const { storagePublicUrl } = await Promise.resolve().then(() => __importStar(require('../config/storage')));
+    const url = storagePublicUrl
+        ? `${storagePublicUrl}/${key}`
+        : `${config_1.config.APP_URL}/api/v1/media/proxy/${encodeURIComponent(key)}`;
     res.json(new ApiResponse_1.ApiResponse(200, { url }, 'Logo uploaded'));
 });
 // ── Admin: Upload Job Company Logo ───────────────────────────────────────────
 exports.uploadJobLogo = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     if (!req.file)
         throw new ApiError_1.ApiError(400, 'No file provided');
-    const ALLOWED = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
-    if (!ALLOWED.has(req.file.mimetype.toLowerCase()))
+    if (!EMPLOYER_IMAGE_TYPES.has(req.file.mimetype.toLowerCase()))
         throw new ApiError_1.ApiError(400, 'Only JPEG, PNG or WebP images allowed');
-    if (req.file.size > 5 * 1024 * 1024)
-        throw new ApiError_1.ApiError(400, 'Logo must be under 5MB');
-    const ext = path_1.default.extname(req.file.originalname) || '.jpg';
+    if (req.file.size > media_service_1.MAX_LOGO_UPLOAD_SIZE)
+        throw new ApiError_1.ApiError(400, 'Logo must be under 10MB');
+    const file = await (0, media_service_1.prepareImageForUpload)(req.file);
+    const ext = path_1.default.extname(file.originalname) || '.jpg';
     const key = `jobs/${crypto_1.default.randomUUID()}${ext}`;
     await storage_1.r2.send(new client_s3_1.PutObjectCommand({
         Bucket: storage_1.storageBucket,
         Key: key,
-        Body: req.file.buffer,
-        ContentType: req.file.mimetype,
+        Body: file.buffer,
+        ContentType: file.mimetype,
     }));
-    const url = `${config_1.config.APP_URL}/api/v1/media/proxy/${encodeURIComponent(key)}`;
+    const { storagePublicUrl } = await Promise.resolve().then(() => __importStar(require('../config/storage')));
+    const url = storagePublicUrl
+        ? `${storagePublicUrl}/${key}`
+        : `${config_1.config.APP_URL}/api/v1/media/proxy/${encodeURIComponent(key)}`;
     res.json(new ApiResponse_1.ApiResponse(200, { url }, 'Logo uploaded'));
 });
 // ── Admin: Create Job ─────────────────────────────────────────────────────────

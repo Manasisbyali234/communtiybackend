@@ -32,6 +32,7 @@ router.get('/', validate({ query: QuerySchema }), eventsController.list);
 router.post('/', validate({ body: CreateEventSchema }), eventsController.create);
 router.get('/:id', eventsController.get);
 router.put('/:id', validate({ body: CreateEventSchema.partial() }), eventsController.update);
+router.patch('/:id/archive', eventsController.archive);
 router.delete('/:id', eventsController.delete);
 router.post('/:id/rsvp', validate({ body: RsvpSchema }), eventsController.rsvp);
 router.delete('/:id/rsvp', eventsController.cancelRsvp);

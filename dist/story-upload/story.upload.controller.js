@@ -10,7 +10,6 @@ const story_r2_service_1 = require("./story.r2.service");
 const storage_1 = require("../config/storage");
 exports.storyUploadController = {
     // POST /api/v1/story-upload/upload
-    // Uploads file to stories/ in R2 and returns the proxy URL (no DB record yet).
     uploadMedia: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         if (!req.file)
             throw ApiError_1.ApiError.badRequest('No file provided');
@@ -29,7 +28,6 @@ exports.storyUploadController = {
         res.json(new ApiResponse_1.ApiResponse(200, { url: result.url, key: result.key }, 'Story media uploaded'));
     }),
     // POST /api/v1/story-upload/create
-    // Uploads file to stories/ in R2 AND creates the Story DB record atomically.
     uploadAndCreate: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         if (!req.file)
             throw ApiError_1.ApiError.badRequest('No file provided');
@@ -44,17 +42,31 @@ exports.storyUploadController = {
         res.status(201).json(new ApiResponse_1.ApiResponse(201, story, 'Story created'));
     }),
     // GET /api/v1/story-upload/proxy/:key(*)
-    // Proxies R2 objects so the bucket doesn't need public access.
+    // Proxies R2 objects with range request support for video playback.
     proxyMedia: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         const key = decodeURIComponent(req.params['key']);
         try {
-            const command = new client_s3_1.GetObjectCommand({ Bucket: storage_1.storageBucket, Key: key });
+            const rangeHeader = req.headers['range'];
+            const command = new client_s3_1.GetObjectCommand({
+                Bucket: storage_1.storageBucket,
+                Key: key,
+                ...(rangeHeader ? { Range: rangeHeader } : {}),
+            });
             const r2Res = await storage_1.r2.send(command);
-            if (r2Res.ContentType)
-                res.setHeader('Content-Type', r2Res.ContentType);
-            if (r2Res.ContentLength)
-                res.setHeader('Content-Length', r2Res.ContentLength);
+            res.setHeader('Content-Type', r2Res.ContentType ?? 'application/octet-stream');
+            res.setHeader('Accept-Ranges', 'bytes');
             res.setHeader('Cache-Control', 'public, max-age=86400');
+            if (rangeHeader && r2Res.ContentRange) {
+                res.setHeader('Content-Range', r2Res.ContentRange);
+                if (r2Res.ContentLength)
+                    res.setHeader('Content-Length', r2Res.ContentLength);
+                res.status(206);
+            }
+            else {
+                if (r2Res.ContentLength)
+                    res.setHeader('Content-Length', r2Res.ContentLength);
+                res.status(200);
+            }
             r2Res.Body.pipe(res);
         }
         catch {

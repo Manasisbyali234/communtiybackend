@@ -5,8 +5,10 @@ const zod_1 = require("zod");
 const messages_controller_1 = require("../../controllers/messages.controller");
 const auth_1 = require("../../middleware/auth");
 const validate_1 = require("../../middleware/validate");
+const rateLimiter_1 = require("../../middleware/rateLimiter");
 const router = (0, express_1.Router)();
 router.use(auth_1.auth);
+router.use(rateLimiter_1.messagesRateLimiter);
 const StartConversationSchema = zod_1.z.object({ participantId: zod_1.z.string().min(1) });
 const SendMessageSchema = zod_1.z.object({
     content: zod_1.z.string().max(5000).optional(),
