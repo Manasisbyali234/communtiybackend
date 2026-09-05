@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import path from 'path';
 import crypto from 'crypto';
+import { Prisma } from '@prisma/client';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { prisma } from '../config/database';
 import { r2, storageBucket } from '../config/storage';
@@ -8,15 +9,40 @@ import { config } from '../config';
 import { ApiResponse } from '../utils/ApiResponse';
 import { ApiError } from '../utils/ApiError';
 import { asyncHandler } from '../utils/asyncHandler';
+import { MAX_LOGO_UPLOAD_SIZE, UploadedFile, prepareImageForUpload } from '../services/media.service';
+
+const EMPLOYER_IMAGE_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
+
+const cleanString = (value: unknown) => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+};
+
+const employerDataFromBody = (body: Record<string, unknown>, partial = false) => {
+  const name = cleanString(body.name);
+  if (!partial && !name) throw new ApiError(400, 'Company name is required');
+  if (partial && 'name' in body && !name) throw new ApiError(400, 'Company name is required');
+
+  const data: Record<string, string | null> = {};
+  if (!partial || 'name' in body) data.name = name;
+  for (const key of ['logoUrl', 'website', 'industry', 'description', 'email', 'phone', 'address', 'city', 'state']) {
+    if (!partial || key in body) data[key] = cleanString(body[key]);
+  }
+  return data;
+};
 
 // ── Admin: Employer CRUD ─────────────────────────────────────────────────────
 export const createEmployer = asyncHandler(async (req: Request, res: Response) => {
-  const { name, logoUrl, website, industry, description, email, phone, address, city, state } = req.body;
-  if (!name) throw new ApiError(400, 'Company name is required');
-  const employer = await prisma.employer.create({
-    data: { name, logoUrl, website, industry, description, email, phone, address, city, state },
-  });
-  res.status(201).json(new ApiResponse(201, employer, 'Employer created'));
+  try {
+    const employer = await prisma.employer.create({
+      data: employerDataFromBody(req.body) as unknown as Prisma.EmployerCreateInput,
+    });
+    res.status(201).json(new ApiResponse(201, employer, 'Employer created'));
+  } catch (err: any) {
+    console.error('[createEmployer] DB error:', err?.message, err?.code);
+    throw new ApiError(500, err?.message || 'Failed to create employer');
+  }
 });
 
 export const listEmployers = asyncHandler(async (_req: Request, res: Response) => {
@@ -46,7 +72,7 @@ export const getEmployer = asyncHandler(async (req: Request, res: Response) => {
 export const updateEmployer = asyncHandler(async (req: Request, res: Response) => {
   const employer = await prisma.employer.update({
     where: { id: req.params.id },
-    data: req.body,
+    data: employerDataFromBody(req.body, true),
   });
   res.json(new ApiResponse(200, employer, 'Employer updated'));
 });
@@ -58,13 +84,16 @@ export const deleteEmployer = asyncHandler(async (req: Request, res: Response) =
 
 export const uploadEmployerLogo = asyncHandler(async (req: Request, res: Response) => {
   if (!req.file) throw new ApiError(400, 'No file provided');
-  const ALLOWED = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
-  if (!ALLOWED.has(req.file.mimetype.toLowerCase())) throw new ApiError(400, 'Only JPEG, PNG or WebP allowed');
-  if (req.file.size > 5 * 1024 * 1024) throw new ApiError(400, 'Logo must be under 5MB');
-  const ext = path.extname(req.file.originalname) || '.jpg';
+  if (!EMPLOYER_IMAGE_TYPES.has(req.file.mimetype.toLowerCase())) throw new ApiError(400, 'Only JPEG, PNG or WebP allowed');
+  if (req.file.size > MAX_LOGO_UPLOAD_SIZE) throw new ApiError(400, 'Logo must be under 10MB');
+  const file = await prepareImageForUpload(req.file as UploadedFile);
+  const ext = path.extname(file.originalname) || '.jpg';
   const key = `employers/${crypto.randomUUID()}${ext}`;
-  await r2.send(new PutObjectCommand({ Bucket: storageBucket, Key: key, Body: req.file.buffer, ContentType: req.file.mimetype }));
-  const url = `${config.APP_URL}/api/v1/media/proxy/${encodeURIComponent(key)}`;
+  await r2.send(new PutObjectCommand({ Bucket: storageBucket, Key: key, Body: file.buffer, ContentType: file.mimetype }));
+  const { storagePublicUrl } = await import('../config/storage');
+  const url = storagePublicUrl
+    ? `${storagePublicUrl}/${key}`
+    : `${config.APP_URL}/api/v1/media/proxy/${encodeURIComponent(key)}`;
   res.json(new ApiResponse(200, { url }, 'Logo uploaded'));
 });
 
@@ -72,21 +101,24 @@ export const uploadEmployerLogo = asyncHandler(async (req: Request, res: Respons
 export const uploadJobLogo = asyncHandler(async (req: Request, res: Response) => {
   if (!req.file) throw new ApiError(400, 'No file provided');
 
-  const ALLOWED = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
-  if (!ALLOWED.has(req.file.mimetype.toLowerCase())) throw new ApiError(400, 'Only JPEG, PNG or WebP images allowed');
-  if (req.file.size > 5 * 1024 * 1024) throw new ApiError(400, 'Logo must be under 5MB');
+  if (!EMPLOYER_IMAGE_TYPES.has(req.file.mimetype.toLowerCase())) throw new ApiError(400, 'Only JPEG, PNG or WebP images allowed');
+  if (req.file.size > MAX_LOGO_UPLOAD_SIZE) throw new ApiError(400, 'Logo must be under 10MB');
 
-  const ext = path.extname(req.file.originalname) || '.jpg';
+  const file = await prepareImageForUpload(req.file as UploadedFile);
+  const ext = path.extname(file.originalname) || '.jpg';
   const key = `jobs/${crypto.randomUUID()}${ext}`;
 
   await r2.send(new PutObjectCommand({
     Bucket: storageBucket,
     Key: key,
-    Body: req.file.buffer,
-    ContentType: req.file.mimetype,
+    Body: file.buffer,
+    ContentType: file.mimetype,
   }));
 
-  const url = `${config.APP_URL}/api/v1/media/proxy/${encodeURIComponent(key)}`;
+  const { storagePublicUrl } = await import('../config/storage');
+  const url = storagePublicUrl
+    ? `${storagePublicUrl}/${key}`
+    : `${config.APP_URL}/api/v1/media/proxy/${encodeURIComponent(key)}`;
 
   res.json(new ApiResponse(200, { url }, 'Logo uploaded'));
 });

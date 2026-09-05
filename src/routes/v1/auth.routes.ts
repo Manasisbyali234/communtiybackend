@@ -6,6 +6,25 @@ import { auth } from '../../middleware/auth';
 
 const router = Router();
 
+const parseDob = (value?: string) => {
+  if (!value) return null;
+  const normalized = value.includes('/')
+    ? value.split('/').reverse().join('-')
+    : value;
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const isAtLeastAge = (value?: string, minimumAge = 18) => {
+  const dob = parseDob(value);
+  if (!dob) return false;
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const birthdayThisYear = new Date(today.getFullYear(), dob.getMonth(), dob.getDate());
+  if (today < birthdayThisYear) age -= 1;
+  return age >= minimumAge;
+};
+
 const RegisterSchema = z.object({
   email: z.string().email(),
   username: z.string().min(3).max(30).regex(/^[a-z0-9_]+$/, 'Lowercase letters, numbers, and underscores only'),
@@ -13,7 +32,10 @@ const RegisterSchema = z.object({
   password: z.string().min(8).max(72),
   phone: z.string().min(10).max(20).optional(),
   familyName: z.string().min(1).max(60).optional(),
-  dob: z.string().max(20).optional(),
+  dob: z.string().max(20).optional().refine(
+    (value) => !value || isAtLeastAge(value),
+    'You must be at least 18 years old to register'
+  ),
   gender: z.enum(['Male', 'Female', 'Other']).optional(),
   country: z.string().max(80).optional(),
   state: z.string().max(80).optional(),

@@ -1,5 +1,6 @@
 import path from 'path';
 import crypto from 'crypto';
+import sharp from 'sharp';
 import { PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { prisma } from '../config/database';
 import { ApiError } from '../utils/ApiError';
@@ -16,40 +17,75 @@ const ALLOWED_MIME_TYPES = new Set([
   'application/pdf', 'text/plain',
 ]);
 
-const MAX_SIZE = 50 * 1024 * 1024;
+export const MAX_MEDIA_UPLOAD_SIZE = 200 * 1024 * 1024;
+export const MAX_LOGO_UPLOAD_SIZE = 10 * 1024 * 1024;
 
-interface UploadedFile {
+export interface UploadedFile {
   buffer: Buffer;
   originalname: string;
   mimetype: string;
   size: number;
 }
 
+const JPEG_MIME_TYPES = new Set(['image/jpeg', 'image/jpg']);
+
+export async function prepareImageForUpload(file: UploadedFile): Promise<UploadedFile> {
+  if (!JPEG_MIME_TYPES.has(file.mimetype.toLowerCase())) return file;
+
+  try {
+    const buffer = await sharp(file.buffer)
+      .rotate()
+      .resize({ width: 2560, height: 2560, fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 82 })
+      .toBuffer();
+
+    return {
+      ...file,
+      buffer,
+      size: buffer.length,
+      mimetype: 'image/webp',
+      originalname: file.originalname.replace(/\.(jpe?g)$/i, '.webp') || `${file.originalname}.webp`,
+    };
+  } catch {
+    throw ApiError.badRequest('Could not process image upload.');
+  }
+}
+
+const assertMaxUploadSize = (file: UploadedFile) => {
+  if (file.size > MAX_MEDIA_UPLOAD_SIZE) {
+    throw ApiError.badRequest('File too large. Maximum size is 200MB.');
+  }
+};
+
+const fileExtension = (file: UploadedFile, fallback = '') => path.extname(file.originalname) || fallback;
+
 export const mediaService = {
   async uploadFile(file: UploadedFile, uploadedBy: string): Promise<{ id: string; filename: string; url: string }> {
-    if (file.size > MAX_SIZE) throw ApiError.badRequest('File too large. Maximum size is 50MB.');
+    assertMaxUploadSize(file);
     if (!ALLOWED_MIME_TYPES.has(file.mimetype.toLowerCase())) throw ApiError.badRequest('File type not allowed.');
 
-    const extension = path.extname(file.originalname);
+    const prepared = await prepareImageForUpload(file);
+    const extension = fileExtension(prepared);
     const filename = `${crypto.randomUUID()}${extension}`;
     const key = `uploads/${filename}`;
 
-    return this._uploadToStorage(file, key, uploadedBy);
+    return this._uploadToStorage(prepared, key, uploadedBy);
   },
 
   async uploadEventImage(file: UploadedFile, uploadedBy: string): Promise<{ id: string; filename: string; url: string }> {
-    if (file.size > MAX_SIZE) throw ApiError.badRequest('File too large. Maximum size is 50MB.');
+    assertMaxUploadSize(file);
     if (!ALLOWED_MIME_TYPES.has(file.mimetype.toLowerCase())) throw ApiError.badRequest('File type not allowed.');
 
-    const extension = path.extname(file.originalname);
+    const prepared = await prepareImageForUpload(file);
+    const extension = fileExtension(prepared);
     const filename = `${crypto.randomUUID()}${extension}`;
     const key = `events/${filename}`;
 
     await r2.send(new PutObjectCommand({
       Bucket: storageBucket,
       Key: key,
-      Body: file.buffer,
-      ContentType: file.mimetype,
+      Body: prepared.buffer,
+      ContentType: prepared.mimetype,
     }));
 
     // Store a relative proxy URL so any client IP resolves it correctly via toAbs()
@@ -58,45 +94,48 @@ export const mediaService = {
     console.log('[uploadEventImage] R2 key:', key, '| db url:', url);
 
     const mediaFile = await prisma.mediaFile.create({
-      data: { filename: key, originalName: file.originalname, mimeType: file.mimetype, fileSize: file.size, url, uploadedBy },
+      data: { filename: key, originalName: prepared.originalname, mimeType: prepared.mimetype, fileSize: prepared.size, url, uploadedBy },
     });
 
     return { id: mediaFile.id, filename: key, url };
   },
 
   async uploadCommunityImage(file: UploadedFile, uploadedBy: string): Promise<{ id: string; filename: string; url: string }> {
-    if (file.size > MAX_SIZE) throw ApiError.badRequest('File too large. Maximum size is 50MB.');
+    assertMaxUploadSize(file);
     if (!ALLOWED_MIME_TYPES.has(file.mimetype.toLowerCase()) || !file.mimetype.toLowerCase().startsWith('image/')) {
       throw ApiError.badRequest('Only supported image files can be used for a community.');
     }
 
-    const extension = path.extname(file.originalname) || '.jpg';
+    const prepared = await prepareImageForUpload(file);
+    const extension = fileExtension(prepared, '.jpg');
     const key = `communities/${uploadedBy}/${crypto.randomUUID()}${extension}`;
-    return this._uploadToStorage(file, key, uploadedBy);
+    return this._uploadToStorage(prepared, key, uploadedBy);
   },
 
   async uploadProfilePhoto(file: UploadedFile, uploadedBy: string): Promise<{ id: string; filename: string; url: string }> {
-    if (file.size > MAX_SIZE) throw ApiError.badRequest('File too large. Maximum size is 50MB.');
+    assertMaxUploadSize(file);
     if (!ALLOWED_MIME_TYPES.has(file.mimetype.toLowerCase())) throw ApiError.badRequest('File type not allowed.');
 
-    const extension = path.extname(file.originalname) || '.jpg';
+    const prepared = await prepareImageForUpload(file);
+    const extension = fileExtension(prepared, '.jpg');
     const key = `profile/profile-photo-${uploadedBy}-${Date.now()}${extension}`;
 
-    return this._uploadProfileToStorage(file, key, uploadedBy);
+    return this._uploadProfileToStorage(prepared, key, uploadedBy);
   },
 
   async uploadCoverPhoto(file: UploadedFile, uploadedBy: string): Promise<{ id: string; filename: string; url: string }> {
-    if (file.size > MAX_SIZE) throw ApiError.badRequest('File too large. Maximum size is 50MB.');
+    assertMaxUploadSize(file);
     if (!ALLOWED_MIME_TYPES.has(file.mimetype.toLowerCase())) throw ApiError.badRequest('File type not allowed.');
 
-    const extension = path.extname(file.originalname) || '.jpg';
+    const prepared = await prepareImageForUpload(file);
+    const extension = fileExtension(prepared, '.jpg');
     const key = `profile/cover-photo-${uploadedBy}-${Date.now()}${extension}`;
 
-    return this._uploadProfileToStorage(file, key, uploadedBy);
+    return this._uploadProfileToStorage(prepared, key, uploadedBy);
   },
 
   async uploadChatFile(file: UploadedFile, uploadedBy: string): Promise<{ id: string; filename: string; url: string; key: string; originalName: string; mimeType: string; fileSize: number }> {
-    if (file.size > MAX_SIZE) throw ApiError.badRequest('File too large. Maximum size is 50MB.');
+    assertMaxUploadSize(file);
 
     const normalizedMime = file.mimetype.toLowerCase();
     const CHAT_ALLOWED = new Set([
@@ -113,22 +152,23 @@ export const mediaService = {
     ]);
     if (!CHAT_ALLOWED.has(normalizedMime)) throw ApiError.badRequest('File type not allowed.');
 
-    const extension = path.extname(file.originalname) || '';
+    const prepared = await prepareImageForUpload(file);
+    const extension = fileExtension(prepared);
     const filename = `${crypto.randomUUID()}${extension}`;
     const key = `chat/${filename}`;
 
     await r2.send(new PutObjectCommand({
       Bucket: storageBucket,
       Key: key,
-      Body: file.buffer,
-      ContentType: file.mimetype,
+      Body: prepared.buffer,
+      ContentType: prepared.mimetype,
     }));
 
     // Store relative proxy URL so it resolves correctly from any client IP
     const url = `/api/v1/media/proxy/${encodeURIComponent(key)}`;
 
     const mediaFile = await prisma.mediaFile.create({
-      data: { filename: key, originalName: file.originalname, mimeType: file.mimetype, fileSize: file.size, url, uploadedBy },
+      data: { filename: key, originalName: prepared.originalname, mimeType: prepared.mimetype, fileSize: prepared.size, url, uploadedBy },
     });
 
     return {
@@ -136,20 +176,21 @@ export const mediaService = {
       filename: key,
       key,
       url,
-      originalName: file.originalname,
-      mimeType: file.mimetype,
-      fileSize: file.size,
+      originalName: prepared.originalname,
+      mimeType: prepared.mimetype,
+      fileSize: prepared.size,
     };
   },
 
   async uploadPostImage(file: UploadedFile, uploadedBy: string): Promise<{ id: string; filename: string; url: string }> {
-    if (file.size > MAX_SIZE) throw ApiError.badRequest('File too large. Maximum size is 50MB.');
+    assertMaxUploadSize(file);
     if (!ALLOWED_MIME_TYPES.has(file.mimetype.toLowerCase())) throw ApiError.badRequest('File type not allowed.');
 
-    const extension = path.extname(file.originalname) || '.jpg';
+    const prepared = await prepareImageForUpload(file);
+    const extension = fileExtension(prepared, '.jpg');
     const key = `feed/post-${uploadedBy}-${Date.now()}${extension}`;
 
-    return this._uploadToStorage(file, key, uploadedBy);
+    return this._uploadToStorage(prepared, key, uploadedBy);
   },
 
   async uploadPostVideo(file: UploadedFile, uploadedBy: string): Promise<{ id: string; filename: string; url: string; mimeType: string; fileSize: number }> {
@@ -158,7 +199,7 @@ export const mediaService = {
 
     if (EXECUTABLE_TYPES.has(file.mimetype.toLowerCase())) throw ApiError.badRequest('Executable files are not allowed.');
     if (!VIDEO_MIME_TYPES.has(file.mimetype.toLowerCase())) throw ApiError.badRequest('Unsupported video format. Allowed: MP4, MOV, AVI, WebM.');
-    if (file.size > MAX_SIZE) throw ApiError.badRequest('Maximum video size allowed is 50 MB.');
+    if (file.size > MAX_MEDIA_UPLOAD_SIZE) throw ApiError.badRequest('Maximum video size allowed is 200 MB.');
 
     const extension = path.extname(file.originalname) || '.mp4';
     const filename = `video-${crypto.randomUUID()}${extension}`;

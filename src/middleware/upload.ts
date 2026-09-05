@@ -2,6 +2,8 @@ import multer, { FileFilterCallback } from 'multer';
 import { Request } from 'express';
 import { ApiError } from '../utils/ApiError';
 
+const MAX_UPLOAD_SIZE = 200 * 1024 * 1024;
+
 const ALLOWED_MIME_TYPES = new Set([
   'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml',
   'video/mp4', 'video/mpeg', 'video/quicktime', 'video/webm', 'video/x-msvideo', 'video/x-matroska',
@@ -26,5 +28,5 @@ function fileFilter(_req: Request, file: Express.Multer.File, cb: FileFilterCall
 export const upload = multer({
   storage: multer.memoryStorage(),
   fileFilter,
-  limits: { fileSize: 50 * 1024 * 1024 },
+  limits: { fileSize: MAX_UPLOAD_SIZE },
 });
