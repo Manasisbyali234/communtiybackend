@@ -25,6 +25,7 @@ export const searchService = {
         prisma.user.findMany({
           where: {
             isActive: true,
+            role: { not: 'ADMIN' },
             deletedAt: null,
             id: { notIn: blockedIds },
             OR: [
@@ -92,6 +93,7 @@ export const searchService = {
     return prisma.user.findMany({
       where: {
         isActive: true,
+        role: { not: 'ADMIN' },
         deletedAt: null,
         id: { notIn: blockedIds },
         OR: [

@@ -69,7 +69,8 @@ export const notificationsService = {
   },
 
   async unreadCount(userId: string): Promise<number> {
-    return prisma.notification.count({ where: { recipientId: userId, isRead: false } });
+    // Self-generated activity is informational, not an actionable update.
+    return prisma.notification.count({ where: { recipientId: userId, isRead: false, OR: [{ actorId: null }, { actorId: { not: userId } }] } });
   },
 
   async markRead(notificationId: string, userId: string): Promise<void> {

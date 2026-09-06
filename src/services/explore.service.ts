@@ -68,7 +68,7 @@ export const exploreService = {
       if (!followingIds.length) {
         // Fallback: most followed users excluding self
         return prisma.user.findMany({
-          where: { id: { not: userId }, deletedAt: null },
+          where: { id: { not: userId }, role: { not: 'ADMIN' }, isActive: true, deletedAt: null },
           orderBy: { followers: { _count: 'desc' } },
           take: limit,
           select,
@@ -88,7 +88,7 @@ export const exploreService = {
       if (!candidateIds.length) {
         // Fallback if no 2nd-degree connections found
         return prisma.user.findMany({
-          where: { id: { notIn: [...followingIds, userId] }, deletedAt: null },
+          where: { id: { notIn: [...followingIds, userId] }, role: { not: 'ADMIN' }, isActive: true, deletedAt: null },
           orderBy: { followers: { _count: 'desc' } },
           take: limit,
           select,
@@ -96,7 +96,7 @@ export const exploreService = {
       }
 
       return prisma.user.findMany({
-        where: { id: { in: candidateIds }, deletedAt: null },
+        where: { id: { in: candidateIds }, role: { not: 'ADMIN' }, isActive: true, deletedAt: null },
         take: limit,
         select,
       });

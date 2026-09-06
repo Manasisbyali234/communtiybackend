@@ -139,6 +139,8 @@ exports.authService = {
             },
             select: userAuthSelect,
         });
+        // Send welcome email non-blocking
+        email_service_1.emailService.sendWelcome(user.email, user.displayName, user.username).catch((err) => logger_1.logger.error({ err }, 'Failed to send welcome email'));
         // Create OTP and send email non-blocking (SMTP failure won't break registration)
         const otp = await this.createOtp(user.id, 'VERIFY_EMAIL');
         email_service_1.emailService.sendOtp(user.email, otp, 'VERIFY_EMAIL').catch((err) => logger_1.logger.error({ err }, 'Failed to send verification email'));

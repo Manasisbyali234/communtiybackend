@@ -28,8 +28,8 @@ export declare const searchService: {
         }[];
         events: {
             id: string;
-            title: string;
             location: string;
+            title: string;
             startsAt: Date;
             rsvpCount: number;
         }[];
@@ -94,6 +94,7 @@ export declare const searchService: {
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        location: string | null;
         description: string | null;
         communityId: string | null;
         likesCount: number;
@@ -101,7 +102,6 @@ export declare const searchService: {
         sharesCount: number;
         creatorId: string;
         title: string;
-        location: string | null;
         startsAt: Date;
         endsAt: Date | null;
         coverUrl: string | null;

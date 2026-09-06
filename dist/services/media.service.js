@@ -285,9 +285,12 @@ exports.mediaService = {
         }));
         // Store a relative URL — frontend prepends the correct host via toAbs()
         const url = `/api/v1/media/proxy/${encodeURIComponent(key)}`;
-        const mediaFile = await database_1.prisma.mediaFile.create({
-            data: { filename: key, originalName: file.originalname, mimeType: file.mimetype, fileSize: file.size, url, uploadedBy },
-        });
+        const [mediaFile] = await Promise.all([
+            database_1.prisma.mediaFile.create({
+                data: { filename: key, originalName: file.originalname, mimeType: file.mimetype, fileSize: file.size, url, uploadedBy },
+            }),
+            database_1.prisma.user.update({ where: { id: uploadedBy }, data: { avatarUrl: url } }),
+        ]);
         return { id: mediaFile.id, filename: key, url };
     },
     async _uploadToStorage(file, key, uploadedBy) {

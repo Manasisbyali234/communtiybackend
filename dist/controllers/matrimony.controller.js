@@ -12,6 +12,8 @@ const database_1 = require("../config/database");
 const storage_1 = require("../config/storage");
 const config_1 = require("../config");
 const ApiResponse_1 = require("../utils/ApiResponse");
+const email_service_1 = require("../services/email.service");
+const logger_1 = require("../config/logger");
 const ApiError_1 = require("../utils/ApiError");
 const asyncHandler_1 = require("../utils/asyncHandler");
 const notifications_service_1 = require("../services/notifications.service");
@@ -133,6 +135,10 @@ exports.createProfile = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         entityType: 'MatrimonyProfile',
         body: `New matrimony profile submitted by ${displayName} — pending approval`,
     })));
+    const user = await database_1.prisma.user.findUnique({ where: { id: userId }, select: { email: true, displayName: true } });
+    if (user) {
+        email_service_1.emailService.sendMatrimonyProfileCreated(user.email, user.displayName).catch((err) => logger_1.logger.error({ err }, 'Failed to send matrimony profile created email'));
+    }
     res.status(201).json(new ApiResponse_1.ApiResponse(201, _withAge(profile), 'Profile submitted for approval'));
 });
 // ── Get My Profile ────────────────────────────────────────────────────────────

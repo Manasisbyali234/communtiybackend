@@ -74,8 +74,8 @@ router.get(
       totalEvents, totalFeeds, totalStories, totalComments, totalLikes,
       totalReports, totalNotifications, activeToday,
     ] = await Promise.all([
-      prisma.user.count({ where: { deletedAt: null } }),
-      prisma.user.count({ where: { deletedAt: null, avatarUrl: { not: null } } }),
+      prisma.user.count({ where: { deletedAt: null, role: { not: 'ADMIN' } } }),
+      prisma.user.count({ where: { deletedAt: null, role: { not: 'ADMIN' }, avatarUrl: { not: null } } }),
       prisma.community.count(),
       prisma.post.count({ where: { deletedAt: null, communityId: { not: null } } }),
       prisma.event.count(),
@@ -85,7 +85,7 @@ router.get(
       prisma.like.count(),
       prisma.report.count(),
       prisma.notification.count(),
-      prisma.user.count({ where: { deletedAt: null, updatedAt: { gte: today } } }),
+      prisma.user.count({ where: { deletedAt: null, role: { not: 'ADMIN' }, updatedAt: { gte: today } } }),
     ]);
 
     res.json(new ApiResponse(200, {
@@ -310,7 +310,7 @@ router.get('/deleted-accounts', asyncHandler(async (req, res) => {
 router.get('/profiles', asyncHandler(async (req, res) => {
   const { skip, take } = paginate(req.query);
   const { q } = req.query as Record<string, string>;
-  const where = { deletedAt: null, ...searchWhere(q) };
+  const where = { deletedAt: null, role: { not: 'ADMIN' as const }, ...searchWhere(q) };
   const [profiles, total] = await Promise.all([
     prisma.user.findMany({
       skip, take, where, orderBy: { createdAt: 'desc' },

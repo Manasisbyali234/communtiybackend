@@ -28,6 +28,7 @@ export declare const eventsService: {
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        location: string | null;
         description: string | null;
         communityId: string | null;
         likesCount: number;
@@ -35,7 +36,6 @@ export declare const eventsService: {
         sharesCount: number;
         creatorId: string;
         title: string;
-        location: string | null;
         startsAt: Date;
         endsAt: Date | null;
         coverUrl: string | null;
@@ -59,6 +59,7 @@ export declare const eventsService: {
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        location: string | null;
         description: string | null;
         communityId: string | null;
         likesCount: number;
@@ -66,7 +67,6 @@ export declare const eventsService: {
         sharesCount: number;
         creatorId: string;
         title: string;
-        location: string | null;
         startsAt: Date;
         endsAt: Date | null;
         rsvpCount: number;
@@ -84,6 +84,7 @@ export declare const eventsService: {
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        location: string | null;
         description: string | null;
         communityId: string | null;
         likesCount: number;
@@ -91,7 +92,6 @@ export declare const eventsService: {
         sharesCount: number;
         creatorId: string;
         title: string;
-        location: string | null;
         startsAt: Date;
         endsAt: Date | null;
         coverUrl: string | null;
@@ -104,6 +104,7 @@ export declare const eventsService: {
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        location: string | null;
         description: string | null;
         communityId: string | null;
         likesCount: number;
@@ -111,7 +112,6 @@ export declare const eventsService: {
         sharesCount: number;
         creatorId: string;
         title: string;
-        location: string | null;
         startsAt: Date;
         endsAt: Date | null;
         coverUrl: string | null;

@@ -7,6 +7,8 @@ const ApiResponse_1 = require("../../utils/ApiResponse");
 const ApiError_1 = require("../../utils/ApiError");
 const database_1 = require("../../config/database");
 const notifications_service_1 = require("../../services/notifications.service");
+const email_service_1 = require("../../services/email.service");
+const logger_1 = require("../../config/logger");
 const router = (0, express_1.Router)();
 router.use(adminAuth_1.adminAuth);
 // ── Pending Counts (bell icon) ────────────────────────────────────────────────
@@ -205,6 +207,7 @@ router.get('/profile-approvals', (0, asyncHandler_1.asyncHandler)(async (req, re
 }));
 router.put('/profile-approvals/:id/approve', (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const user = await updateApprovalStatus(req.params['id'], 'APPROVED', req.adminId);
+    email_service_1.emailService.sendProfileApproved(user.email, user.displayName).catch((err) => logger_1.logger.error({ err }, 'Failed to send profile approved email'));
     res.json(new ApiResponse_1.ApiResponse(200, user, 'Profile approved'));
 }));
 router.put('/profile-approvals/:id/reject', (0, asyncHandler_1.asyncHandler)(async (req, res) => {
@@ -270,7 +273,7 @@ router.get('/deleted-accounts', (0, asyncHandler_1.asyncHandler)(async (req, res
 router.get('/profiles', (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const { skip, take } = paginate(req.query);
     const { q } = req.query;
-    const where = { deletedAt: null, ...searchWhere(q) };
+    const where = { deletedAt: null, role: { not: 'ADMIN' }, ...searchWhere(q) };
     const [profiles, total] = await Promise.all([
         database_1.prisma.user.findMany({
             skip, take, where, orderBy: { createdAt: 'desc' },
@@ -501,7 +504,8 @@ router.put('/events/:id/approve', (0, asyncHandler_1.asyncHandler)(async (req, r
     const event = await database_1.prisma.event.update({
         where: { id: req.params['id'] },
         data: { status: 'APPROVED' },
-        select: { id: true, title: true, status: true, creatorId: true },
+        select: { id: true, title: true, status: true, creatorId: true, startsAt: true, location: true,
+            creator: { select: { email: true, displayName: true } } },
     });
     await notifications_service_1.notificationsService.create({
         recipientId: event.creatorId,
@@ -510,6 +514,9 @@ router.put('/events/:id/approve', (0, asyncHandler_1.asyncHandler)(async (req, r
         entityType: 'Event',
         body: `Your event "${event.title}" has been approved!`,
     });
+    if (event.creator) {
+        email_service_1.emailService.sendEventApproved(event.creator.email, event.creator.displayName, event.title, event.startsAt, event.location).catch((err) => logger_1.logger.error({ err }, 'Failed to send event approved email'));
+    }
     res.json(new ApiResponse_1.ApiResponse(200, event, 'Event approved'));
 }));
 router.put('/events/:id/reject', (0, asyncHandler_1.asyncHandler)(async (req, res) => {
@@ -517,7 +524,8 @@ router.put('/events/:id/reject', (0, asyncHandler_1.asyncHandler)(async (req, re
     const event = await database_1.prisma.event.update({
         where: { id: req.params['id'] },
         data: { status: 'REJECTED' },
-        select: { id: true, title: true, status: true, creatorId: true },
+        select: { id: true, title: true, status: true, creatorId: true, startsAt: true, location: true,
+            creator: { select: { email: true, displayName: true } } },
     });
     await notifications_service_1.notificationsService.create({
         recipientId: event.creatorId,

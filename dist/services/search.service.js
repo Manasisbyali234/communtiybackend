@@ -25,6 +25,7 @@ exports.searchService = {
                 database_1.prisma.user.findMany({
                     where: {
                         isActive: true,
+                        role: { not: 'ADMIN' },
                         deletedAt: null,
                         id: { notIn: blockedIds },
                         OR: [
@@ -86,6 +87,7 @@ exports.searchService = {
         return database_1.prisma.user.findMany({
             where: {
                 isActive: true,
+                role: { not: 'ADMIN' },
                 deletedAt: null,
                 id: { notIn: blockedIds },
                 OR: [
