@@ -7,6 +7,8 @@ import { prisma } from '../config/database';
 import { r2, storageBucket } from '../config/storage';
 import { config } from '../config';
 import { ApiResponse } from '../utils/ApiResponse';
+import { emailService } from '../services/email.service';
+import { logger } from '../config/logger';
 import { ApiError } from '../utils/ApiError';
 import { asyncHandler } from '../utils/asyncHandler';
 import { notificationsService } from '../services/notifications.service';
@@ -138,6 +140,12 @@ export const createProfile = asyncHandler(async (req: Request, res: Response) =>
     })
   ));
 
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, displayName: true } });
+  if (user) {
+    emailService.sendMatrimonyProfileCreated(user.email, user.displayName).catch((err) =>
+      logger.error({ err }, 'Failed to send matrimony profile created email')
+    );
+  }
   res.status(201).json(new ApiResponse(201, _withAge(profile), 'Profile submitted for approval'));
 });
 

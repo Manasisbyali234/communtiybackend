@@ -13,7 +13,6 @@ services:
       - NODE_ENV=production
       - PORT=${PORT:-3000}
     depends_on:
-      - db
       - redis
 
   workers:
@@ -28,24 +27,7 @@ services:
     environment:
       - NODE_ENV=production
     depends_on:
-      - db
       - redis
-
-  db:
-    image: postgres:16
-    networks:
-      default:
-        aliases:
-          - community_postgres
-    restart: always
-    environment:
-      - POSTGRES_USER=${DB_USER:-postgres}
-      - POSTGRES_PASSWORD=${DB_PASSWORD:-password}
-      - POSTGRES_DB=${DB_NAME:-community_db}
-    volumes:
-      - db_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
 
   redis:
     image: redis:7
@@ -56,5 +38,4 @@ services:
       - redis_data:/data
 
 volumes:
-  db_data:
   redis_data:

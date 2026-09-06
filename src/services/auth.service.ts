@@ -168,6 +168,11 @@ export const authService = {
       select: userAuthSelect,
     });
 
+    // Send welcome email non-blocking
+    emailService.sendWelcome(user.email, user.displayName, user.username).catch((err) =>
+      logger.error({ err }, 'Failed to send welcome email')
+    );
+
     // Create OTP and send email non-blocking (SMTP failure won't break registration)
     const otp = await this.createOtp(user.id, 'VERIFY_EMAIL');
     emailService.sendOtp(user.email, otp, 'VERIFY_EMAIL').catch((err) =>
@@ -309,7 +314,7 @@ export const authService = {
     if (!user || !user.isActive) return;
 
     const code = await this.createOtp(user.id, 'OTP_LOGIN');
-    await emailService.sendOtp(email, code, 'OTP_LOGIN' as any);
+    await emailService.sendOtp(email, code, 'OTP_LOGIN');
   },
 
   async verifyOtpLogin(email: string, code: string): Promise<{ user: object; accessToken: string; refreshToken: string }> {
