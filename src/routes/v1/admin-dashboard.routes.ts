@@ -7,8 +7,6 @@ import { prisma } from '../../config/database';
 import { notificationsService } from '../../services/notifications.service';
 import { emailService } from '../../services/email.service';
 import { logger } from '../../config/logger';
-import { emailService } from '../../services/email.service';
-import { logger } from '../../config/logger';
 
 const router = Router();
 router.use(adminAuth);
