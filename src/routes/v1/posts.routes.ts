@@ -46,12 +46,15 @@ router.use(auth);
 router.get('/feed', validate({ query: CursorQuerySchema }), postsController.getFeed);
 router.get('/trending', validate({ query: CursorQuerySchema }), postsController.getTrending);
 router.get('/drafts', validate({ query: CursorQuerySchema }), postsController.getDrafts);
+router.get('/archived', postsController.getArchivedPosts);
 
 // ── CRUD ──────────────────────────────────────────────────────────────────────
 router.post('/', validate({ body: CreatePostSchema }), postsController.createPost);
 router.get('/:id', postsController.getPost);
 router.put('/:id', validate({ body: UpdatePostSchema }), postsController.updatePost);
 router.delete('/:id', postsController.deletePost);
+router.post('/:id/archive', postsController.archivePost);
+router.delete('/:id/archive', postsController.unarchivePost);
 router.post('/:id/publish', postsController.publishDraft);
 
 // ── Social ────────────────────────────────────────────────────────────────────

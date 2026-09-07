@@ -253,6 +253,29 @@ export const postsService = {
     await prisma.post.update({ where: { id: postId }, data: { deletedAt: new Date() } });
   },
 
+  async archivePost(postId: string, userId: string) {
+    const post = await prisma.post.findFirst({ where: { id: postId, deletedAt: null } });
+    if (!post) throw ApiError.notFound('Post not found');
+    if (post.authorId !== userId) throw ApiError.forbidden('You can only archive your own posts');
+    await prisma.post.update({ where: { id: postId }, data: { isDraft: true } });
+  },
+
+  async unarchivePost(postId: string, userId: string) {
+    const post = await prisma.post.findFirst({ where: { id: postId, isDraft: true, deletedAt: null } });
+    if (!post) throw ApiError.notFound('Post not found');
+    if (post.authorId !== userId) throw ApiError.forbidden('You can only unarchive your own posts');
+    await prisma.post.update({ where: { id: postId }, data: { isDraft: false } });
+  },
+
+  async getArchivedPosts(userId: string) {
+    const posts = await prisma.post.findMany({
+      where: { authorId: userId, isDraft: true, deletedAt: null },
+      select: POST_SELECT,
+      orderBy: { updatedAt: 'desc' },
+    });
+    return posts;
+  },
+
   async publishDraft(postId: string, userId: string) {
     const post = await prisma.post.findFirst({ where: { id: postId, deletedAt: null, isDraft: true, authorId: userId } });
     if (!post) throw ApiError.notFound('Draft not found');
