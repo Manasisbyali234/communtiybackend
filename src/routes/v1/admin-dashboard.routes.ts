@@ -72,21 +72,22 @@ router.get(
     const [
       totalUsers, totalProfiles, totalCommunities, totalCommunityPosts,
       totalEvents, totalFeeds, totalStories, totalComments, totalLikes,
-      totalReports, totalNotifications, activeToday,
+      totalReports, totalNotifications, activeTodayCount,
     ] = await Promise.all([
       prisma.user.count({ where: { deletedAt: null, role: { not: 'ADMIN' } } }),
       prisma.user.count({ where: { deletedAt: null, role: { not: 'ADMIN' }, avatarUrl: { not: null } } }),
-      prisma.community.count(),
+      prisma.community.count({ where: { status: 'APPROVED' } }),
       prisma.post.count({ where: { deletedAt: null, communityId: { not: null } } }),
       prisma.event.count(),
       prisma.post.count({ where: { deletedAt: null, communityId: null } }),
-      prisma.story.count(),
+      prisma.story.count({ where: { expiresAt: { gte: new Date() } } }),
       prisma.comment.count({ where: { deletedAt: null } }),
       prisma.like.count(),
       prisma.report.count(),
       prisma.notification.count(),
-      prisma.user.count({ where: { deletedAt: null, role: { not: 'ADMIN' }, updatedAt: { gte: today } } }),
+      prisma.refreshToken.count({ where: { createdAt: { gte: today } } }),
     ]);
+    const activeToday = activeTodayCount;
 
     res.json(new ApiResponse(200, {
       totalUsers, totalProfiles, totalCommunities, totalCommunityPosts,
@@ -528,10 +529,10 @@ router.delete('/feeds/:id', asyncHandler(async (req, res) => {
 router.get('/events', asyncHandler(async (req, res) => {
   const { skip, take } = paginate(req.query);
   const { q, status } = req.query as Record<string, string>;
-  const statusMap: Record<string, string> = { PENDING: 'PENDING_APPROVAL', APPROVED: 'APPROVED', REJECTED: 'REJECTED' };
+  const statusMap: Record<string, string> = { PENDING: 'PENDING_APPROVAL', APPROVED: 'APPROVED', REJECTED: 'REJECTED', ARCHIVED: 'ARCHIVED' };
   const mappedStatus = status && statusMap[status] ? statusMap[status] : undefined;
   const where: any = {
-    ...(mappedStatus ? { status: mappedStatus } : {}),
+    ...(mappedStatus ? { status: mappedStatus as any } : {}),
     ...(q ? { OR: [{ title: { contains: q, mode: 'insensitive' as const } }, { description: { contains: q, mode: 'insensitive' as const } }] } : {}),
   };
   const [events, total] = await Promise.all([
