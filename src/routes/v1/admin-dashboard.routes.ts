@@ -14,9 +14,9 @@ router.use(adminAuth);
 // ── Pending Counts (bell icon) ────────────────────────────────────────────────
 router.get('/pending-counts', asyncHandler(async (_req, res) => {
   const [pendingCommunities, pendingEvents, pendingProfiles] = await Promise.all([
-    prisma.community.count({ where: { status: 'PENDING' } }),
-    prisma.event.count({ where: { status: 'PENDING_APPROVAL' } }),
-    prisma.user.count({ where: { role: { not: 'ADMIN' }, deletedAt: null, approvalStatus: { in: ['PENDING', 'RESUBMITTED'] } } }),
+    prisma.community.count({ where: { status: 'PENDING' } }).catch(() => 0),
+    prisma.event.count({ where: { status: 'PENDING_APPROVAL' } }).catch(() => 0),
+    prisma.user.count({ where: { role: { not: 'ADMIN' }, deletedAt: null, approvalStatus: { in: ['PENDING', 'RESUBMITTED'] } } }).catch(() => 0),
   ]);
   res.json(new ApiResponse(200, { pendingCommunities, pendingEvents, pendingProfiles, total: pendingCommunities + pendingEvents + pendingProfiles }));
 }));

@@ -1,6 +1,5 @@
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { r2, storageBucket } from '../config/storage';
-import { config } from '../config';
 import { MAX_MEDIA_UPLOAD_SIZE, prepareMediaForUpload, UploadedFile } from '../services/media.service';
 
 const STORY_FOLDER = 'stories';
@@ -22,8 +21,10 @@ function buildKey(originalname: string): string {
   return `${STORY_FOLDER}/${Date.now()}_${safe}`;
 }
 
+// Relative proxy URL — resolves correctly from any client IP,
+// same pattern as media.service.ts _uploadToStorage.
 function proxyUrl(key: string): string {
-  return `${config.APP_URL}/api/v1/story-upload/proxy/${encodeURIComponent(key)}`;
+  return `/api/v1/story-upload/proxy/${encodeURIComponent(key)}`;
 }
 
 export const storyR2Service = {

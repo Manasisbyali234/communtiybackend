@@ -1112,23 +1112,56 @@ model MatrimonyProfile {
   dateOfBirth      DateTime                @db.Date
   height           String
   maritalStatus    MatrimonyMaritalStatus  @default(NEVER_MARRIED)
+  bloodGroup       String?
+  eatingHabits     String?
+  disability       String?
   religion         String
   caste            String?
   motherTongue     String
+  // Astrology
+  birthTime        String?
+  placeOfBirth     String?
+  raashi           String?
+  nakshathra       String?
+  gana             String?
+  gotra            String?
+  dosham           String?
+  bali             String?
+  // Career & Education
   education        MatrimonyEducation      @default(OTHER)
   educationDetails String?
+  educationField   String?
+  workingWith      String?
+  designation      String?
   occupation       String
+  workLocation     String?
   annualIncome     String?
+  // Location
   city             String
   state            String
+  // Family
+  familyType       String?
+  familyValue      String?
+  familyLocation   String?
+  fatherName       String?
+  fatherStatus     String?
+  fatherOccupation String?
+  motherName       String?
+  motherStatus     String?
+  motherOccupation String?
+  brothers         Int?
+  brothersMarried  Int?
+  sisters          Int?
+  sistersMarried   Int?
+  ancestralOrigin  String?
+  siblings         Int?
+  // Photos & Privacy
+  photos           String[]
+  photoVisibility  String?
+  // Misc
   aboutMe          String?
   hobbies          String[]
   diet             String?
-  familyType       String?
-  fatherOccupation String?
-  motherOccupation String?
-  siblings         Int?
-  photos           String[]
   isVerified       Boolean                 @default(false)
   isActive         Boolean                 @default(true)
   approvalStatus   MatrimonyApprovalStatus @default(PENDING)
