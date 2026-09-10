@@ -36,6 +36,9 @@ export const mediaController = {
       { buffer: req.file.buffer, originalname: req.file.originalname, mimetype: req.file.mimetype, size: req.file.size },
       req.user.id
     );
+    // Save avatarUrl to user record
+    const { prisma } = await import('../config/database');
+    await prisma.user.update({ where: { id: req.user.id }, data: { avatarUrl: result.url } });
     res.json(new ApiResponse(200, result, 'Profile photo uploaded successfully'));
   }),
 
