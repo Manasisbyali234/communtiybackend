@@ -10,9 +10,9 @@ const router = Router();
 const UpdateMeSchema = z.object({
   displayName: z.string().min(1).max(60).optional(),
   bio: z.string().max(500).optional(),
-  avatarUrl: z.string().url().optional(),
-  bannerUrl: z.string().url().optional(),
-  coverImage: z.string().url().nullable().optional(),
+  avatarUrl: z.string().optional(),
+  bannerUrl: z.string().optional(),
+  coverImage: z.string().nullable().optional(),
   familyName: z.string().max(60).optional(),
   dob: z.string().max(20).optional(),
   gender: z.enum(['Male', 'Female', 'Other']).optional(),

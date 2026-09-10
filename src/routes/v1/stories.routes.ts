@@ -7,7 +7,7 @@ import { validate } from '../../middleware/validate';
 const router = Router();
 
 const CreateStorySchema = z.object({
-  mediaUrl: z.string().url(),
+  mediaUrl: z.string().min(1),
   mediaType: z.enum(['IMAGE', 'VIDEO']),
 });
 const UpdateStorySchema = CreateStorySchema.partial().refine((data) => data.mediaUrl || data.mediaType, {
