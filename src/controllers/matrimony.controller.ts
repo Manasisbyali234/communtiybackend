@@ -229,11 +229,11 @@ export const listProfiles = asyncHandler(async (req: Request, res: Response) => 
   const where: any = { isActive: true, approvalStatus: MatrimonyApprovalStatus.APPROVED };
 
   // Fetch requesting user's profile for exclusion + smart defaults
-  let myProfile: { id: string; gender: string; dateOfBirth: Date; partnerMinAge: number | null; partnerMaxAge: number | null; approvalStatus: string } | null = null;
+  let myProfile: { id: string; gender: string; dateOfBirth: Date; partnerMinAge: number | null; partnerMaxAge: number | null; partnerReligion: string | null; partnerCaste: string | null; partnerEducation: string | null; partnerCity: string | null; approvalStatus: string } | null = null;
   if (userId) {
     myProfile = await prisma.matrimonyProfile.findUnique({
       where: { userId },
-      select: { id: true, gender: true, dateOfBirth: true, partnerMinAge: true, partnerMaxAge: true, approvalStatus: true },
+      select: { id: true, gender: true, dateOfBirth: true, partnerMinAge: true, partnerMaxAge: true, partnerReligion: true, partnerCaste: true, partnerEducation: true, partnerCity: true, approvalStatus: true },
     });
 
     // Gate: must have an approved profile to browse
@@ -265,11 +265,27 @@ export const listProfiles = asyncHandler(async (req: Request, res: Response) => 
   }
   // else: no age filter — show all ages
 
-  if (religion) where.religion = { contains: religion, mode: 'insensitive' };
-  if (caste) where.caste = { contains: caste, mode: 'insensitive' };
+  if (religion) {
+    where.religion = { contains: religion, mode: 'insensitive' };
+  } else if (myProfile?.partnerReligion) {
+    where.religion = { contains: myProfile.partnerReligion, mode: 'insensitive' };
+  }
+  if (caste) {
+    where.caste = { contains: caste, mode: 'insensitive' };
+  } else if (myProfile?.partnerCaste) {
+    where.caste = { contains: myProfile.partnerCaste, mode: 'insensitive' };
+  }
   if (maritalStatus) where.maritalStatus = maritalStatus;
-  if (education) where.education = education;
-  if (city) where.city = { contains: city, mode: 'insensitive' };
+  if (education) {
+    where.education = education;
+  } else if (myProfile?.partnerEducation) {
+    where.education = myProfile.partnerEducation;
+  }
+  if (city) {
+    where.city = { contains: city, mode: 'insensitive' };
+  } else if (myProfile?.partnerCity) {
+    where.city = { contains: myProfile.partnerCity, mode: 'insensitive' };
+  }
 
   if (search) {
     where.OR = [

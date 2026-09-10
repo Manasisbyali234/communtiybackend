@@ -38,6 +38,18 @@ exports.postsController = {
         await posts_service_1.postsService.deletePost(req.params['id'], req.user.id, req.user.role);
         res.json(new ApiResponse_1.ApiResponse(200, null, 'Post deleted'));
     }),
+    archivePost: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        await posts_service_1.postsService.archivePost(req.params['id'], req.user.id);
+        res.json(new ApiResponse_1.ApiResponse(200, null, 'Post archived'));
+    }),
+    unarchivePost: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        await posts_service_1.postsService.unarchivePost(req.params['id'], req.user.id);
+        res.json(new ApiResponse_1.ApiResponse(200, null, 'Post unarchived'));
+    }),
+    getArchivedPosts: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const posts = await posts_service_1.postsService.getArchivedPosts(req.user.id);
+        res.json(new ApiResponse_1.ApiResponse(200, posts));
+    }),
     publishDraft: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         const post = await posts_service_1.postsService.publishDraft(req.params['id'], req.user.id);
         res.json(new ApiResponse_1.ApiResponse(200, post, 'Draft published'));

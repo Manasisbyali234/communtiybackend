@@ -209,6 +209,44 @@ export declare const postsService: {
         }[];
     }>;
     deletePost(postId: string, userId: string, role: string): Promise<void>;
+    archivePost(postId: string, userId: string): Promise<void>;
+    unarchivePost(postId: string, userId: string): Promise<void>;
+    getArchivedPosts(userId: string): Promise<{
+        status: import(".prisma/client").$Enums.PostStatus;
+        community: {
+            name: string;
+            id: string;
+            avatarUrl: string;
+            slug: string;
+        };
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        content: string;
+        mediaType: import(".prisma/client").$Enums.MediaType;
+        mediaUrls: string[];
+        videoUrl: string;
+        videoFileName: string;
+        mimeType: string;
+        fileSize: number;
+        likesCount: number;
+        commentsCount: number;
+        sharesCount: number;
+        isDraft: boolean;
+        scheduledAt: Date;
+        author: {
+            id: string;
+            username: string;
+            displayName: string;
+            avatarUrl: string;
+        };
+        hashtags: {
+            hashtag: {
+                name: string;
+                id: string;
+            };
+        }[];
+    }[]>;
     publishDraft(postId: string, userId: string): Promise<{
         status: import(".prisma/client").$Enums.PostStatus;
         community: {

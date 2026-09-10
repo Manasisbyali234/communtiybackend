@@ -3,7 +3,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.storyR2Service = void 0;
 const client_s3_1 = require("@aws-sdk/client-s3");
 const storage_1 = require("../config/storage");
-const config_1 = require("../config");
 const media_service_1 = require("../services/media.service");
 const STORY_FOLDER = 'stories';
 const ALLOWED_MIME_TYPES = new Set([
@@ -14,8 +13,9 @@ function buildKey(originalname) {
     const safe = originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
     return `${STORY_FOLDER}/${Date.now()}_${safe}`;
 }
+// Relative proxy path — the frontend's toAbsStory() will prepend the correct host.
 function proxyUrl(key) {
-    return `${config_1.config.APP_URL}/api/v1/story-upload/proxy/${encodeURIComponent(key)}`;
+    return `/api/v1/story-upload/proxy/${encodeURIComponent(key)}`;
 }
 exports.storyR2Service = {
     validate(file) {

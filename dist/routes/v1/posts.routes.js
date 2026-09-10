@@ -40,11 +40,14 @@ router.use(auth_1.auth);
 router.get('/feed', (0, validate_1.validate)({ query: CursorQuerySchema }), posts_controller_1.postsController.getFeed);
 router.get('/trending', (0, validate_1.validate)({ query: CursorQuerySchema }), posts_controller_1.postsController.getTrending);
 router.get('/drafts', (0, validate_1.validate)({ query: CursorQuerySchema }), posts_controller_1.postsController.getDrafts);
+router.get('/archived', posts_controller_1.postsController.getArchivedPosts);
 // ── CRUD ──────────────────────────────────────────────────────────────────────
 router.post('/', (0, validate_1.validate)({ body: CreatePostSchema }), posts_controller_1.postsController.createPost);
 router.get('/:id', posts_controller_1.postsController.getPost);
 router.put('/:id', (0, validate_1.validate)({ body: UpdatePostSchema }), posts_controller_1.postsController.updatePost);
 router.delete('/:id', posts_controller_1.postsController.deletePost);
+router.post('/:id/archive', posts_controller_1.postsController.archivePost);
+router.delete('/:id/archive', posts_controller_1.postsController.unarchivePost);
 router.post('/:id/publish', posts_controller_1.postsController.publishDraft);
 // ── Social ────────────────────────────────────────────────────────────────────
 router.post('/:id/like', posts_controller_1.postsController.likePost);

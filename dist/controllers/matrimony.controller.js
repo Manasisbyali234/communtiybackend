@@ -91,7 +91,9 @@ exports.createProfile = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const existing = await database_1.prisma.matrimonyProfile.findUnique({ where: { userId } });
     if (existing)
         throw new ApiError_1.ApiError(409, 'Profile already exists. Use update instead.');
-    const { displayName, gender, dateOfBirth, height, maritalStatus, religion, caste, motherTongue, education, educationDetails, occupation, annualIncome, city, state, aboutMe, hobbies, diet, familyType, fatherOccupation, motherOccupation, siblings, photos, partnerMinAge, partnerMaxAge, partnerReligion, partnerCaste, partnerEducation, partnerCity, } = req.body;
+    const { displayName, gender, dateOfBirth, height, maritalStatus, religion, caste, motherTongue, education, educationDetails, occupation, annualIncome, city, state, aboutMe, hobbies, diet, familyType, fatherOccupation, motherOccupation, siblings, photos, partnerMinAge, partnerMaxAge, partnerReligion, partnerCaste, partnerEducation, partnerCity, 
+    // Extended fields
+    bloodGroup, eatingHabits, disability, birthTime, placeOfBirth, raashi, nakshathra, gana, gotra, dosham, bali, educationField, workingWith, designation, workLocation, familyValue, familyLocation, fatherName, fatherStatus, motherName, motherStatus, brothers, brothersMarried, sisters, sistersMarried, ancestralOrigin, photoVisibility, } = req.body;
     if (!displayName || !gender || !dateOfBirth || !city) {
         throw new ApiError_1.ApiError(400, 'displayName, gender, dateOfBirth and city are required');
     }
@@ -114,6 +116,17 @@ exports.createProfile = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
             aboutMe, hobbies: hobbies ?? [],
             diet, familyType, fatherOccupation, motherOccupation,
             siblings: siblings != null ? Number(siblings) : null,
+            // Extended fields
+            bloodGroup, eatingHabits, disability,
+            birthTime, placeOfBirth, raashi, nakshathra, gana, gotra, dosham, bali,
+            educationField, workingWith, designation, workLocation,
+            familyValue, familyLocation,
+            fatherName, fatherStatus, motherName, motherStatus,
+            brothers: brothers != null ? Number(brothers) : null,
+            brothersMarried: brothersMarried != null ? Number(brothersMarried) : null,
+            sisters: sisters != null ? Number(sisters) : null,
+            sistersMarried: sistersMarried != null ? Number(sistersMarried) : null,
+            ancestralOrigin, photoVisibility,
             photos: photoList,
             approvalStatus: client_1.MatrimonyApprovalStatus.PENDING,
             partnerMinAge: partnerMinAge != null ? Number(partnerMinAge) : null,

@@ -10,9 +10,9 @@ const router = (0, express_1.Router)();
 const UpdateMeSchema = zod_1.z.object({
     displayName: zod_1.z.string().min(1).max(60).optional(),
     bio: zod_1.z.string().max(500).optional(),
-    avatarUrl: zod_1.z.string().url().optional(),
-    bannerUrl: zod_1.z.string().url().optional(),
-    coverImage: zod_1.z.string().url().nullable().optional(),
+    avatarUrl: zod_1.z.string().optional(),
+    bannerUrl: zod_1.z.string().optional(),
+    coverImage: zod_1.z.string().nullable().optional(),
     familyName: zod_1.z.string().max(60).optional(),
     dob: zod_1.z.string().max(20).optional(),
     gender: zod_1.z.enum(['Male', 'Female', 'Other']).optional(),

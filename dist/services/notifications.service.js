@@ -63,7 +63,8 @@ exports.notificationsService = {
         return (0, pagination_1.buildCursorPage)(enriched, limit);
     },
     async unreadCount(userId) {
-        return database_1.prisma.notification.count({ where: { recipientId: userId, isRead: false } });
+        // Self-generated activity is informational, not an actionable update.
+        return database_1.prisma.notification.count({ where: { recipientId: userId, isRead: false, OR: [{ actorId: null }, { actorId: { not: userId } }] } });
     },
     async markRead(notificationId, userId) {
         await database_1.prisma.notification.updateMany({

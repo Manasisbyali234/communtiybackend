@@ -14,9 +14,9 @@ router.use(adminAuth_1.adminAuth);
 // ── Pending Counts (bell icon) ────────────────────────────────────────────────
 router.get('/pending-counts', (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
     const [pendingCommunities, pendingEvents, pendingProfiles] = await Promise.all([
-        database_1.prisma.community.count({ where: { status: 'PENDING' } }),
-        database_1.prisma.event.count({ where: { status: 'PENDING_APPROVAL' } }),
-        database_1.prisma.user.count({ where: { role: { not: 'ADMIN' }, deletedAt: null, approvalStatus: { in: ['PENDING', 'RESUBMITTED'] } } }),
+        database_1.prisma.community.count({ where: { status: 'PENDING' } }).catch(() => 0),
+        database_1.prisma.event.count({ where: { status: 'PENDING_APPROVAL' } }).catch(() => 0),
+        database_1.prisma.user.count({ where: { role: { not: 'ADMIN' }, deletedAt: null, approvalStatus: { in: ['PENDING', 'RESUBMITTED'] } } }).catch(() => 0),
     ]);
     res.json(new ApiResponse_1.ApiResponse(200, { pendingCommunities, pendingEvents, pendingProfiles, total: pendingCommunities + pendingEvents + pendingProfiles }));
 }));
@@ -60,20 +60,21 @@ async function updateApprovalStatus(userId, status, adminId, reason) {
 router.get('/dashboard', (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const [totalUsers, totalProfiles, totalCommunities, totalCommunityPosts, totalEvents, totalFeeds, totalStories, totalComments, totalLikes, totalReports, totalNotifications, activeToday,] = await Promise.all([
-        database_1.prisma.user.count({ where: { deletedAt: null } }),
-        database_1.prisma.user.count({ where: { deletedAt: null, avatarUrl: { not: null } } }),
-        database_1.prisma.community.count(),
+    const [totalUsers, totalProfiles, totalCommunities, totalCommunityPosts, totalEvents, totalFeeds, totalStories, totalComments, totalLikes, totalReports, totalNotifications, activeTodayCount,] = await Promise.all([
+        database_1.prisma.user.count({ where: { deletedAt: null, role: { not: 'ADMIN' } } }),
+        database_1.prisma.user.count({ where: { deletedAt: null, role: { not: 'ADMIN' }, avatarUrl: { not: null } } }),
+        database_1.prisma.community.count({ where: { status: 'APPROVED' } }),
         database_1.prisma.post.count({ where: { deletedAt: null, communityId: { not: null } } }),
         database_1.prisma.event.count(),
         database_1.prisma.post.count({ where: { deletedAt: null, communityId: null } }),
-        database_1.prisma.story.count(),
+        database_1.prisma.story.count({ where: { expiresAt: { gte: new Date() } } }),
         database_1.prisma.comment.count({ where: { deletedAt: null } }),
         database_1.prisma.like.count(),
         database_1.prisma.report.count(),
         database_1.prisma.notification.count(),
-        database_1.prisma.user.count({ where: { deletedAt: null, updatedAt: { gte: today } } }),
+        database_1.prisma.refreshToken.count({ where: { createdAt: { gte: today } } }),
     ]);
+    const activeToday = activeTodayCount;
     res.json(new ApiResponse_1.ApiResponse(200, {
         totalUsers, totalProfiles, totalCommunities, totalCommunityPosts,
         totalEvents, totalFeeds, totalStories, totalComments, totalLikes,
@@ -479,7 +480,7 @@ router.delete('/feeds/:id', (0, asyncHandler_1.asyncHandler)(async (req, res) =>
 router.get('/events', (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const { skip, take } = paginate(req.query);
     const { q, status } = req.query;
-    const statusMap = { PENDING: 'PENDING_APPROVAL', APPROVED: 'APPROVED', REJECTED: 'REJECTED' };
+    const statusMap = { PENDING: 'PENDING_APPROVAL', APPROVED: 'APPROVED', REJECTED: 'REJECTED', ARCHIVED: 'ARCHIVED' };
     const mappedStatus = status && statusMap[status] ? statusMap[status] : undefined;
     const where = {
         ...(mappedStatus ? { status: mappedStatus } : {}),

@@ -228,6 +228,30 @@ exports.postsService = {
         // Soft delete
         await database_1.prisma.post.update({ where: { id: postId }, data: { deletedAt: new Date() } });
     },
+    async archivePost(postId, userId) {
+        const post = await database_1.prisma.post.findFirst({ where: { id: postId, deletedAt: null } });
+        if (!post)
+            throw ApiError_1.ApiError.notFound('Post not found');
+        if (post.authorId !== userId)
+            throw ApiError_1.ApiError.forbidden('You can only archive your own posts');
+        await database_1.prisma.post.update({ where: { id: postId }, data: { isDraft: true } });
+    },
+    async unarchivePost(postId, userId) {
+        const post = await database_1.prisma.post.findFirst({ where: { id: postId, isDraft: true, deletedAt: null } });
+        if (!post)
+            throw ApiError_1.ApiError.notFound('Post not found');
+        if (post.authorId !== userId)
+            throw ApiError_1.ApiError.forbidden('You can only unarchive your own posts');
+        await database_1.prisma.post.update({ where: { id: postId }, data: { isDraft: false } });
+    },
+    async getArchivedPosts(userId) {
+        const posts = await database_1.prisma.post.findMany({
+            where: { authorId: userId, isDraft: true, deletedAt: null },
+            select: exports.POST_SELECT,
+            orderBy: { updatedAt: 'desc' },
+        });
+        return posts;
+    },
     async publishDraft(postId, userId) {
         const post = await database_1.prisma.post.findFirst({ where: { id: postId, deletedAt: null, isDraft: true, authorId: userId } });
         if (!post)

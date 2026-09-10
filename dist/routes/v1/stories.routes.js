@@ -7,7 +7,7 @@ const auth_1 = require("../../middleware/auth");
 const validate_1 = require("../../middleware/validate");
 const router = (0, express_1.Router)();
 const CreateStorySchema = zod_1.z.object({
-    mediaUrl: zod_1.z.string().url(),
+    mediaUrl: zod_1.z.string().min(1),
     mediaType: zod_1.z.enum(['IMAGE', 'VIDEO']),
 });
 const UpdateStorySchema = CreateStorySchema.partial().refine((data) => data.mediaUrl || data.mediaType, {

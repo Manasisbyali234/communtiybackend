@@ -7,6 +7,9 @@ export declare const postsController: {
     getPost: (req: Request, res: Response, next: import("express").NextFunction) => void;
     updatePost: (req: Request, res: Response, next: import("express").NextFunction) => void;
     deletePost: (req: Request, res: Response, next: import("express").NextFunction) => void;
+    archivePost: (req: Request, res: Response, next: import("express").NextFunction) => void;
+    unarchivePost: (req: Request, res: Response, next: import("express").NextFunction) => void;
+    getArchivedPosts: (req: Request, res: Response, next: import("express").NextFunction) => void;
     publishDraft: (req: Request, res: Response, next: import("express").NextFunction) => void;
     likePost: (req: Request, res: Response, next: import("express").NextFunction) => void;
     unlikePost: (req: Request, res: Response, next: import("express").NextFunction) => void;
