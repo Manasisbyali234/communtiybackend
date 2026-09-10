@@ -11,7 +11,8 @@ const isApprovalStatusRouteAllowed = (method: string, url: string) => {
     cleanUrl.endsWith('/auth/verify-phone') ||
     cleanUrl.endsWith('/auth/resend-phone-otp') ||
     cleanUrl.endsWith('/auth/logout') ||
-    (cleanUrl.endsWith('/users/me') && ['GET', 'PUT', 'DELETE'].includes(method))
+    (cleanUrl.endsWith('/users/me') && ['GET', 'PUT', 'DELETE'].includes(method)) ||
+    (cleanUrl.endsWith('/media/upload-profile-photo') && method === 'POST')
   );
 };
 
