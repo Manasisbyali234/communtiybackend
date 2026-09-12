@@ -600,6 +600,45 @@ router.delete('/events/:id', asyncHandler(async (req, res) => {
   res.json(new ApiResponse(200, null, 'Event deleted'));
 }));
 
+// ── Auto Approval Settings ────────────────────────────────────────────────────
+router.get('/settings/auto-approval', asyncHandler(async (_req, res) => {
+  const [commEntry, evtEntry] = await Promise.all([
+    prisma.cacheEntry.findUnique({ where: { key: 'admin:auto_approve_community' } }),
+    prisma.cacheEntry.findUnique({ where: { key: 'admin:auto_approve_event' } }),
+  ]);
+  res.json(new ApiResponse(200, {
+    communityAutoApproval: commEntry?.value === 'true',
+    eventAutoApproval: evtEntry?.value === 'true',
+  }));
+}));
+
+router.put('/settings/auto-approval', asyncHandler(async (req, res) => {
+  const { type, enabled } = req.body as { type: 'community' | 'event'; enabled: boolean };
+  const key = type === 'community' ? 'admin:auto_approve_community' : 'admin:auto_approve_event';
+
+  await prisma.cacheEntry.upsert({
+    where: { key },
+    create: { key, value: String(enabled) },
+    update: { value: String(enabled) },
+  });
+
+  if (enabled && type === 'community') {
+    const pending = await prisma.community.findMany({ where: { status: 'PENDING' }, select: { id: true, name: true } });
+    await Promise.all(pending.map((c) =>
+      prisma.community.update({ where: { id: c.id }, data: { status: 'APPROVED', memberCount: 1 } })
+    ));
+  }
+
+  if (enabled && type === 'event') {
+    const pending = await prisma.event.findMany({ where: { status: 'PENDING_APPROVAL' }, select: { id: true } });
+    await Promise.all(pending.map((e) =>
+      prisma.event.update({ where: { id: e.id }, data: { status: 'APPROVED' } })
+    ));
+  }
+
+  res.json(new ApiResponse(200, { type, enabled }, `Auto approval ${enabled ? 'enabled' : 'disabled'} for ${type}s`));
+}));
+
 // ── Stories ───────────────────────────────────────────────────────────────────
 router.get('/stories', asyncHandler(async (req, res) => {
   const { skip, take } = paginate(req.query);

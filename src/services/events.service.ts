@@ -83,8 +83,11 @@ export const eventsService = {
     title: string; description?: string; location?: string;
     startsAt: Date; endsAt?: Date; coverUrl?: string; communityId?: string;
   }) {
+    const autoApproveEntry = await prisma.cacheEntry.findUnique({ where: { key: 'admin:auto_approve_event' } });
+    const autoApprove = autoApproveEntry?.value === 'true';
+
     const event = await prisma.event.create({
-      data: { creatorId, ...data, status: EventStatus.PENDING_APPROVAL },
+      data: { creatorId, ...data, status: autoApprove ? EventStatus.APPROVED : EventStatus.PENDING_APPROVAL },
       include: { community: { select: { id: true, name: true } } },
     });
 

@@ -45,11 +45,14 @@ export const communitiesService = {
     });
     if (existing) throw ApiError.conflict('A community with this name already exists');
 
+    const autoApproveEntry = await prisma.cacheEntry.findUnique({ where: { key: 'admin:auto_approve_community' } });
+    const autoApprove = autoApproveEntry?.value === 'true';
+
     const community = await prisma.community.create({
       data: {
         ...data,
         slug,
-        status: 'PENDING',
+        status: autoApprove ? 'APPROVED' : 'PENDING',
         memberCount: 1,
         members: { create: { userId: creatorId, role: CommunityMemberRole.ADMIN, status: CommunityMemberStatus.ACTIVE } },
       },
