@@ -25,6 +25,7 @@ router.get('/help-requests/:id', directory.getHelp);
 router.patch('/help-requests/:id', directory.updateHelp);
 router.patch('/help-requests/:id/archive', directory.archiveHelp);
 router.post('/help-requests/:id/offers', directory.offerHelp);
+router.post('/help-requests/:id/report', directory.reportHelp);
 router.patch('/help-requests/:id/moderate', directory.moderateHelp);
 router.patch('/help-requests/:id/resolve', directory.resolveHelp);
 router.delete('/help-requests/:id', directory.deleteHelp);
