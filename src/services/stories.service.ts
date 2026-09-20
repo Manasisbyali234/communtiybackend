@@ -9,13 +9,12 @@ const STORY_TTL_SECONDS = 24 * 60 * 60; // 24 hours
 
 export const storiesService = {
   async getFeed(userId: string) {
-    const follows = await prisma.follow.findMany({ where: { followerId: userId }, select: { followingId: true } });
-    const followingIds = [...follows.map((f) => f.followingId), userId];
-
+    // In a community app stories are visible to all approved members —
+    // not restricted to followed accounts only.
     const stories = await prisma.story.findMany({
       where: {
-        authorId: { in: followingIds },
         expiresAt: { gt: new Date() },
+        author: { approvalStatus: 'APPROVED', isBanned: false, isActive: true },
       },
       include: {
         author: { select: { id: true, username: true, displayName: true, avatarUrl: true } },
@@ -24,7 +23,7 @@ export const storiesService = {
       orderBy: { createdAt: 'desc' },
     });
 
-    // Group by user
+    // Group by author
     const grouped = new Map<string, { user: (typeof stories)[0]['author']; stories: typeof stories; hasUnseen: boolean }>();
     for (const story of stories) {
       const key = story.authorId;
@@ -36,7 +35,13 @@ export const storiesService = {
       if (story.views.length === 0) group.hasUnseen = true;
     }
 
-    return Array.from(grouped.values());
+    // Current user's own stories go first, then by most recent story in each group
+    const currentUserGroup = grouped.get(userId);
+    const otherGroups = Array.from(grouped.values())
+      .filter((g) => g.user.id !== userId)
+      .sort((a, b) => new Date(b.stories[0].createdAt).getTime() - new Date(a.stories[0].createdAt).getTime());
+
+    return currentUserGroup ? [currentUserGroup, ...otherGroups] : otherGroups;
   },
 
   async getById(storyId: string, requesterId?: string) {
