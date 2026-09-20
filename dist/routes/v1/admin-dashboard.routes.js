@@ -541,6 +541,35 @@ router.delete('/events/:id', (0, asyncHandler_1.asyncHandler)(async (req, res) =
     await database_1.prisma.event.delete({ where: { id: req.params['id'] } });
     res.json(new ApiResponse_1.ApiResponse(200, null, 'Event deleted'));
 }));
+// ── Auto Approval Settings ────────────────────────────────────────────────────
+router.get('/settings/auto-approval', (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
+    const [commEntry, evtEntry] = await Promise.all([
+        database_1.prisma.cacheEntry.findUnique({ where: { key: 'admin:auto_approve_community' } }),
+        database_1.prisma.cacheEntry.findUnique({ where: { key: 'admin:auto_approve_event' } }),
+    ]);
+    res.json(new ApiResponse_1.ApiResponse(200, {
+        communityAutoApproval: commEntry?.value === 'true',
+        eventAutoApproval: evtEntry?.value === 'true',
+    }));
+}));
+router.put('/settings/auto-approval', (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const { type, enabled } = req.body;
+    const key = type === 'community' ? 'admin:auto_approve_community' : 'admin:auto_approve_event';
+    await database_1.prisma.cacheEntry.upsert({
+        where: { key },
+        create: { key, value: String(enabled) },
+        update: { value: String(enabled) },
+    });
+    if (enabled && type === 'community') {
+        const pending = await database_1.prisma.community.findMany({ where: { status: 'PENDING' }, select: { id: true, name: true } });
+        await Promise.all(pending.map((c) => database_1.prisma.community.update({ where: { id: c.id }, data: { status: 'APPROVED', memberCount: 1 } })));
+    }
+    if (enabled && type === 'event') {
+        const pending = await database_1.prisma.event.findMany({ where: { status: 'PENDING_APPROVAL' }, select: { id: true } });
+        await Promise.all(pending.map((e) => database_1.prisma.event.update({ where: { id: e.id }, data: { status: 'APPROVED' } })));
+    }
+    res.json(new ApiResponse_1.ApiResponse(200, { type, enabled }, `Auto approval ${enabled ? 'enabled' : 'disabled'} for ${type}s`));
+}));
 // ── Stories ───────────────────────────────────────────────────────────────────
 router.get('/stories', (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const { skip, take } = paginate(req.query);

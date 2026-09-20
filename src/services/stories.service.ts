@@ -72,6 +72,15 @@ export const storiesService = {
     const queue = getQueue(QUEUE_NAMES.STORY_EXPIRY);
     await queue.add('expire', { storyId: story.id }, { delay: STORY_TTL_SECONDS * 1000 });
 
+    // Stories are visible to every approved, active member. Notify active
+    // clients so a mounted home feed immediately refreshes its stories row.
+    try {
+      const { getIO } = await import('../sockets/index');
+      getIO().emit('story:created', { storyId: story.id, authorId });
+    } catch {
+      // Socket.io is intentionally absent in service/unit-test contexts.
+    }
+
     return story;
   },
 

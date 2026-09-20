@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteCommunityStory = exports.updateCommunityStory = exports.createCommunityStory = exports.listCommunityStoriesAdmin = exports.getCommunityStory = exports.listCommunityStories = exports.deleteHelp = exports.resolveHelp = exports.moderateHelp = exports.listHelpAdmin = exports.offerHelp = exports.archiveHelp = exports.updateHelp = exports.createHelp = exports.getHelp = exports.myHelp = exports.listHelp = exports.businessModeration = exports.listBusinessesAdmin = exports.addBusinessReview = exports.contactBusiness = exports.deleteBusiness = exports.archiveBusiness = exports.updateBusiness = exports.createBusiness = exports.myBusinesses = exports.getBusiness = exports.listBusinesses = void 0;
+exports.deleteCommunityStory = exports.updateCommunityStory = exports.createCommunityStory = exports.listCommunityStoriesAdmin = exports.getCommunityStory = exports.listCommunityStories = exports.deleteHelp = exports.reportHelp = exports.resolveHelp = exports.moderateHelp = exports.listHelpAdmin = exports.offerHelp = exports.archiveHelp = exports.updateHelp = exports.createHelp = exports.getHelp = exports.myHelp = exports.listHelp = exports.businessModeration = exports.listBusinessesAdmin = exports.addBusinessReview = exports.contactBusiness = exports.deleteBusiness = exports.archiveBusiness = exports.updateBusiness = exports.createBusiness = exports.myBusinesses = exports.getBusiness = exports.listBusinesses = void 0;
 const database_1 = require("../config/database");
 const ApiError_1 = require("../utils/ApiError");
 const ApiResponse_1 = require("../utils/ApiResponse");
@@ -11,7 +11,7 @@ const adminOnly = (req) => {
         throw new ApiError_1.ApiError(403, 'Administrator access required');
 };
 const businessInclude = { user: { select: { id: true, displayName: true, avatarUrl: true } }, reviews: true };
-const helpInclude = { user: { select: { id: true, displayName: true, avatarUrl: true, phone: true } }, helpers: { include: { user: { select: { id: true, displayName: true, avatarUrl: true, phone: true } } } } };
+const helpInclude = { user: { select: { id: true, displayName: true, avatarUrl: true, phone: true } }, helpers: { include: { user: { select: { id: true, displayName: true, avatarUrl: true, phone: true } } } }, reports: { select: { id: true, reason: true, details: true, createdAt: true } } };
 const mapBusiness = (b) => ({ ...b, ownerName: b.user.displayName, ownerAvatarUrl: b.user.avatarUrl, submittedAt: b.createdAt, reviewCount: b.reviews.length, averageRating: b.reviews.length ? b.reviews.reduce((sum, r) => sum + r.rating, 0) / b.reviews.length : 0 });
 const businessFields = (body) => ({
     businessName: String(body.businessName ?? '').trim(),
@@ -30,7 +30,7 @@ const businessFields = (body) => ({
     logoUrl: body.logoUrl ? String(body.logoUrl).trim() : null,
     photos: Array.isArray(body.photos) ? body.photos.filter((photo) => typeof photo === 'string') : [],
 });
-const mapHelp = (r) => ({ ...r, requesterName: r.user.displayName, requesterAvatarUrl: r.user.avatarUrl, requesterPhone: r.user.phone, requesterLocation: r.location, helpers: r.helpers.map((h) => ({ id: h.id, requestId: h.requestId, helperId: h.userId, helperName: h.user.displayName, helperAvatarUrl: h.user.avatarUrl, helperPhone: h.user.phone, message: h.message, offeredAt: h.createdAt })), reports: [] });
+const mapHelp = (r) => ({ ...r, requesterName: r.user.displayName, requesterAvatarUrl: r.user.avatarUrl, requesterPhone: r.user.phone, requesterLocation: r.location, helpers: r.helpers.map((h) => ({ id: h.id, requestId: h.requestId, helperId: h.userId, helperName: h.user.displayName, helperAvatarUrl: h.user.avatarUrl, helperPhone: h.user.phone, message: h.message, offeredAt: h.createdAt })), reports: r.reports ?? [] });
 exports.listBusinesses = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const { category, search } = req.query;
     const businesses = await database_1.prisma.businessListing.findMany({ where: { status: 'APPROVED', ...(category ? { category } : {}), ...(search ? { OR: ['businessName', 'description', 'productsServices', 'location'].map((field) => ({ [field]: { contains: search, mode: 'insensitive' } })) } : {}) }, include: businessInclude, orderBy: { approvedAt: 'desc' } });
@@ -72,6 +72,25 @@ exports.listHelpAdmin = (0, asyncHandler_1.asyncHandler)(async (req, res) => { a
 exports.moderateHelp = (0, asyncHandler_1.asyncHandler)(async (req, res) => { adminOnly(req); const status = req.body.status === 'APPROVED' ? 'APPROVED' : 'REJECTED'; const row = await database_1.prisma.communityHelpRequest.update({ where: { id: req.params.id }, data: { status, rejectionReason: status === 'REJECTED' ? req.body.reason ?? null : null } }); res.json(new ApiResponse_1.ApiResponse(200, row)); });
 exports.resolveHelp = (0, asyncHandler_1.asyncHandler)(async (req, res) => { const row = await database_1.prisma.communityHelpRequest.findUnique({ where: { id: req.params.id } }); if (!row || row.userId !== req.user.id)
     throw new ApiError_1.ApiError(404, 'Help request not found'); const updated = await database_1.prisma.communityHelpRequest.update({ where: { id: row.id }, data: { status: 'RESOLVED', resolvedAt: new Date() } }); res.json(new ApiResponse_1.ApiResponse(200, updated)); });
+exports.reportHelp = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const request = await database_1.prisma.communityHelpRequest.findUnique({ where: { id: req.params.id } });
+    if (!request || (request.status !== 'APPROVED' && request.status !== 'PENDING'))
+        throw new ApiError_1.ApiError(404, 'Help request not found');
+    if (request.userId === req.user.id)
+        throw new ApiError_1.ApiError(400, 'You cannot report your own request');
+    const reason = String(req.body.reason ?? '').trim();
+    if (!reason)
+        throw new ApiError_1.ApiError(400, 'A report reason is required');
+    const report = await database_1.prisma.communityHelpReport.upsert({
+        where: { requestId_userId: { requestId: request.id, userId: req.user.id } },
+        create: { requestId: request.id, userId: req.user.id, reason, details: req.body.details ? String(req.body.details).trim() : null },
+        update: { reason, details: req.body.details ? String(req.body.details).trim() : null },
+    });
+    // Notify admin of the report via the notification service
+    const admins = await database_1.prisma.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } });
+    await Promise.all(admins.map((admin) => notifications_service_1.notificationsService.create({ recipientId: admin.id, actorId: req.user.id, entityId: request.id, entityType: 'COMMUNITY_HELP', type: 'MESSAGE', body: `reported a help request: "${request.title}"` })));
+    res.status(201).json(new ApiResponse_1.ApiResponse(201, report, 'Report submitted for admin review'));
+});
 exports.deleteHelp = (0, asyncHandler_1.asyncHandler)(async (req, res) => { const row = await database_1.prisma.communityHelpRequest.findUnique({ where: { id: req.params.id } }); if (!row || (row.userId !== req.user.id && req.user.role !== 'ADMIN'))
     throw new ApiError_1.ApiError(404, 'Help request not found'); await database_1.prisma.communityHelpRequest.delete({ where: { id: row.id } }); res.json(new ApiResponse_1.ApiResponse(200, null)); });
 exports.listCommunityStories = (0, asyncHandler_1.asyncHandler)(async (req, res) => {

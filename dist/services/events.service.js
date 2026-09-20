@@ -76,8 +76,10 @@ exports.eventsService = {
         return (0, pagination_1.buildCursorPage)(normalized, limit);
     },
     async create(creatorId, data) {
+        const autoApproveEntry = await database_1.prisma.cacheEntry.findUnique({ where: { key: 'admin:auto_approve_event' } });
+        const autoApprove = autoApproveEntry?.value === 'true';
         const event = await database_1.prisma.event.create({
-            data: { creatorId, ...data, status: client_1.EventStatus.PENDING_APPROVAL },
+            data: { creatorId, ...data, status: autoApprove ? client_1.EventStatus.APPROVED : client_1.EventStatus.PENDING_APPROVAL },
             include: { community: { select: { id: true, name: true } } },
         });
         // Schedule a reminder 24h before the event (non-critical — fire-and-forget)

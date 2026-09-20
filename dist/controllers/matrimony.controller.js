@@ -211,7 +211,7 @@ exports.listProfiles = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     if (userId) {
         myProfile = await database_1.prisma.matrimonyProfile.findUnique({
             where: { userId },
-            select: { id: true, gender: true, dateOfBirth: true, partnerMinAge: true, partnerMaxAge: true, approvalStatus: true },
+            select: { id: true, gender: true, dateOfBirth: true, partnerMinAge: true, partnerMaxAge: true, partnerReligion: true, partnerCaste: true, partnerEducation: true, partnerCity: true, approvalStatus: true },
         });
         // Gate: must have an approved profile to browse
         if (!myProfile || myProfile.approvalStatus !== client_1.MatrimonyApprovalStatus.APPROVED) {
@@ -237,16 +237,32 @@ exports.listProfiles = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         where.dateOfBirth = _dobRange(myProfile.partnerMinAge ?? undefined, myProfile.partnerMaxAge ?? undefined);
     }
     // else: no age filter — show all ages
-    if (religion)
+    if (religion) {
         where.religion = { contains: religion, mode: 'insensitive' };
-    if (caste)
+    }
+    else if (myProfile?.partnerReligion) {
+        where.religion = { contains: myProfile.partnerReligion, mode: 'insensitive' };
+    }
+    if (caste) {
         where.caste = { contains: caste, mode: 'insensitive' };
+    }
+    else if (myProfile?.partnerCaste) {
+        where.caste = { contains: myProfile.partnerCaste, mode: 'insensitive' };
+    }
     if (maritalStatus)
         where.maritalStatus = maritalStatus;
-    if (education)
+    if (education) {
         where.education = education;
-    if (city)
+    }
+    else if (myProfile?.partnerEducation) {
+        where.education = myProfile.partnerEducation;
+    }
+    if (city) {
         where.city = { contains: city, mode: 'insensitive' };
+    }
+    else if (myProfile?.partnerCity) {
+        where.city = { contains: myProfile.partnerCity, mode: 'insensitive' };
+    }
     if (search) {
         where.OR = [
             { displayName: { contains: search, mode: 'insensitive' } },

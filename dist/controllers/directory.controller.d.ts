@@ -20,6 +20,7 @@ export declare const offerHelp: (req: Request, res: Response, next: import("expr
 export declare const listHelpAdmin: (req: Request, res: Response, next: import("express").NextFunction) => void;
 export declare const moderateHelp: (req: Request, res: Response, next: import("express").NextFunction) => void;
 export declare const resolveHelp: (req: Request, res: Response, next: import("express").NextFunction) => void;
+export declare const reportHelp: (req: Request, res: Response, next: import("express").NextFunction) => void;
 export declare const deleteHelp: (req: Request, res: Response, next: import("express").NextFunction) => void;
 export declare const listCommunityStories: (req: Request, res: Response, next: import("express").NextFunction) => void;
 export declare const getCommunityStory: (req: Request, res: Response, next: import("express").NextFunction) => void;

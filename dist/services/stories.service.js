@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.storiesService = void 0;
 const database_1 = require("../config/database");
@@ -9,12 +42,12 @@ const notifications_service_1 = require("./notifications.service");
 const STORY_TTL_SECONDS = 24 * 60 * 60; // 24 hours
 exports.storiesService = {
     async getFeed(userId) {
-        const follows = await database_1.prisma.follow.findMany({ where: { followerId: userId }, select: { followingId: true } });
-        const followingIds = [...follows.map((f) => f.followingId), userId];
+        // In a community app stories are visible to all approved members —
+        // not restricted to followed accounts only.
         const stories = await database_1.prisma.story.findMany({
             where: {
-                authorId: { in: followingIds },
                 expiresAt: { gt: new Date() },
+                author: { approvalStatus: 'APPROVED', isBanned: false, isActive: true },
             },
             include: {
                 author: { select: { id: true, username: true, displayName: true, avatarUrl: true } },
@@ -22,7 +55,7 @@ exports.storiesService = {
             },
             orderBy: { createdAt: 'desc' },
         });
-        // Group by user
+        // Group by author
         const grouped = new Map();
         for (const story of stories) {
             const key = story.authorId;
@@ -34,7 +67,12 @@ exports.storiesService = {
             if (story.views.length === 0)
                 group.hasUnseen = true;
         }
-        return Array.from(grouped.values());
+        // Current user's own stories go first, then by most recent story in each group
+        const currentUserGroup = grouped.get(userId);
+        const otherGroups = Array.from(grouped.values())
+            .filter((g) => g.user.id !== userId)
+            .sort((a, b) => new Date(b.stories[0].createdAt).getTime() - new Date(a.stories[0].createdAt).getTime());
+        return currentUserGroup ? [currentUserGroup, ...otherGroups] : otherGroups;
     },
     async getById(storyId, requesterId) {
         const story = await database_1.prisma.story.findUnique({
@@ -61,6 +99,15 @@ exports.storiesService = {
         // Schedule BullMQ cleanup job
         const queue = (0, bullmq_1.getQueue)(bullmq_1.QUEUE_NAMES.STORY_EXPIRY);
         await queue.add('expire', { storyId: story.id }, { delay: STORY_TTL_SECONDS * 1000 });
+        // Stories are visible to every approved, active member. Notify active
+        // clients so a mounted home feed immediately refreshes its stories row.
+        try {
+            const { getIO } = await Promise.resolve().then(() => __importStar(require('../sockets/index')));
+            getIO().emit('story:created', { storyId: story.id, authorId });
+        }
+        catch {
+            // Socket.io is intentionally absent in service/unit-test contexts.
+        }
         return story;
     },
     async update(storyId, userId, data) {
