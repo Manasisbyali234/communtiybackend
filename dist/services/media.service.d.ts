@@ -56,7 +56,7 @@ export declare const mediaService: {
         mimeType: string;
         fileSize: number;
     }>;
-    _uploadProfileToStorage(file: UploadedFile, key: string, uploadedBy: string): Promise<{
+    _uploadProfileToStorage(file: UploadedFile, key: string, uploadedBy: string, profileField: "avatarUrl" | "coverImage"): Promise<{
         id: string;
         filename: string;
         url: string;

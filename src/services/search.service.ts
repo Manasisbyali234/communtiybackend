@@ -99,9 +99,13 @@ export const searchService = {
         OR: [
           { displayName: { contains: query, mode: 'insensitive' } },
           { username: { contains: query, mode: 'insensitive' } },
+          { familyName: { contains: query, mode: 'insensitive' } },
         ],
       },
-      select: { id: true, username: true, displayName: true, avatarUrl: true, isVerified: true },
+      // Family suggestions on the profile screen need this field to verify a
+      // same-Okka match. Omitting it made every otherwise valid account look
+      // unrelated on the client.
+      select: { id: true, username: true, displayName: true, avatarUrl: true, familyName: true, isVerified: true },
       take: limit,
     });
   },

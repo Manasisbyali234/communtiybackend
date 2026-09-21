@@ -44,6 +44,7 @@ export declare const searchService: {
         username: string;
         displayName: string;
         avatarUrl: string;
+        familyName: string;
         isVerified: boolean;
     }[]>;
     searchPosts(query: string, userId: string, limit?: number): Promise<({

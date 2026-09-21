@@ -53,9 +53,18 @@ export const connectionsService = {
   },
 
   async acceptRequest(requestId: string, userId: string) {
-    const request = await prisma.connectionRequest.findUnique({ where: { id: requestId } });
+    const request = await prisma.connectionRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        sender: { select: { id: true, displayName: true, avatarUrl: true, username: true } },
+        receiver: { select: { id: true, displayName: true, avatarUrl: true, username: true } },
+      },
+    });
     if (!request) throw new ApiError(404, 'Request not found');
     if (request.receiverId !== userId) throw new ApiError(403, 'Forbidden');
+    // A second tap or a retry after a slow network must not turn a completed
+    // approval into an error for the recipient.
+    if (request.status === 'ACCEPTED') return request;
     if (request.status !== 'PENDING') throw new ApiError(400, 'Request is not pending');
 
     const updated = await prisma.connectionRequest.update({
@@ -115,6 +124,9 @@ export const connectionsService = {
     const request = await prisma.connectionRequest.findUnique({ where: { id: requestId } });
     if (!request) throw new ApiError(404, 'Request not found');
     if (request.receiverId !== userId) throw new ApiError(403, 'Forbidden');
+    // Declining is also safe to retry; the notification screen will refresh
+    // and remove the now-resolved request either way.
+    if (request.status === 'REJECTED') return;
     if (request.status !== 'PENDING') throw new ApiError(400, 'Request is not pending');
 
     await prisma.connectionRequest.update({

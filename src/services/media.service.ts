@@ -207,7 +207,7 @@ export const mediaService = {
     const extension = fileExtension(prepared, '.jpg');
     const key = `profile/profile-photo-${uploadedBy}-${Date.now()}${extension}`;
 
-    return this._uploadProfileToStorage(prepared, key, uploadedBy);
+    return this._uploadProfileToStorage(prepared, key, uploadedBy, 'avatarUrl');
   },
 
   async uploadCoverPhoto(file: UploadedFile, uploadedBy: string): Promise<{ id: string; filename: string; url: string }> {
@@ -218,7 +218,7 @@ export const mediaService = {
     const extension = fileExtension(prepared, '.jpg');
     const key = `profile/cover-photo-${uploadedBy}-${Date.now()}${extension}`;
 
-    return this._uploadProfileToStorage(prepared, key, uploadedBy);
+    return this._uploadProfileToStorage(prepared, key, uploadedBy, 'coverImage');
   },
 
   async uploadChatFile(file: UploadedFile, uploadedBy: string): Promise<{ id: string; filename: string; url: string; key: string; originalName: string; mimeType: string; fileSize: number }> {
@@ -310,7 +310,12 @@ export const mediaService = {
 
   // Profile images use a relative proxy path so any client IP can resolve them correctly.
   // The frontend's toAbs() in authStore prepends the correct base URL at runtime.
-  async _uploadProfileToStorage(file: UploadedFile, key: string, uploadedBy: string): Promise<{ id: string; filename: string; url: string }> {
+  async _uploadProfileToStorage(
+    file: UploadedFile,
+    key: string,
+    uploadedBy: string,
+    profileField: 'avatarUrl' | 'coverImage',
+  ): Promise<{ id: string; filename: string; url: string }> {
     await r2.send(new PutObjectCommand({
       Bucket: storageBucket,
       Key: key,
@@ -325,7 +330,7 @@ export const mediaService = {
       prisma.mediaFile.create({
         data: { filename: key, originalName: file.originalname, mimeType: file.mimetype, fileSize: file.size, url, uploadedBy },
       }),
-      prisma.user.update({ where: { id: uploadedBy }, data: { avatarUrl: url } }),
+      prisma.user.update({ where: { id: uploadedBy }, data: { [profileField]: url } }),
     ]);
 
     return { id: mediaFile.id, filename: key, url };

@@ -189,7 +189,7 @@ exports.mediaService = {
         const prepared = await prepareImageForUpload(file);
         const extension = fileExtension(prepared, '.jpg');
         const key = `profile/profile-photo-${uploadedBy}-${Date.now()}${extension}`;
-        return this._uploadProfileToStorage(prepared, key, uploadedBy);
+        return this._uploadProfileToStorage(prepared, key, uploadedBy, 'avatarUrl');
     },
     async uploadCoverPhoto(file, uploadedBy) {
         assertMaxUploadSize(file);
@@ -198,7 +198,7 @@ exports.mediaService = {
         const prepared = await prepareImageForUpload(file);
         const extension = fileExtension(prepared, '.jpg');
         const key = `profile/cover-photo-${uploadedBy}-${Date.now()}${extension}`;
-        return this._uploadProfileToStorage(prepared, key, uploadedBy);
+        return this._uploadProfileToStorage(prepared, key, uploadedBy, 'coverImage');
     },
     async uploadChatFile(file, uploadedBy) {
         assertMaxUploadSize(file);
@@ -276,7 +276,7 @@ exports.mediaService = {
     },
     // Profile images use a relative proxy path so any client IP can resolve them correctly.
     // The frontend's toAbs() in authStore prepends the correct base URL at runtime.
-    async _uploadProfileToStorage(file, key, uploadedBy) {
+    async _uploadProfileToStorage(file, key, uploadedBy, profileField) {
         await storage_1.r2.send(new client_s3_1.PutObjectCommand({
             Bucket: storage_1.storageBucket,
             Key: key,
@@ -289,7 +289,7 @@ exports.mediaService = {
             database_1.prisma.mediaFile.create({
                 data: { filename: key, originalName: file.originalname, mimeType: file.mimetype, fileSize: file.size, url, uploadedBy },
             }),
-            database_1.prisma.user.update({ where: { id: uploadedBy }, data: { avatarUrl: url } }),
+            database_1.prisma.user.update({ where: { id: uploadedBy }, data: { [profileField]: url } }),
         ]);
         return { id: mediaFile.id, filename: key, url };
     },
